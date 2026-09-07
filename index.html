@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Badminton Manager V9 (PRO)</title>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- 🚪 หน้า Lobby -->
+    <div id="landing-page" style="text-align: center; margin-top: 50px;">
+        <h1 style="font-size: 2.5rem; color: #2c3e50;">🏸 Badminton Manager PRO</h1>
+        <p>ระบบจัดการคิวและสถิติแบบครบวงจร</p>
+
+        <div style="margin: 30px auto; max-width: 400px; display: flex; flex-direction: column; gap: 15px;">
+
+            <!-- โซนจัดการคอร์ท -->
+            <button onclick="createRoom()" class="primary" style="font-size: 1.2rem; padding: 15px; border-radius: 8px;">
+                👑 1. สร้างห้องใหม่ (Host)
+            </button>
+
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <input type="text" id="room-code-input" placeholder="รหัสห้อง เช่น 1908-A1B2"
+                       style="flex: 1; text-align: center; font-size: 1.1rem; border-radius: 8px; border: 1px solid #ccc; text-transform: uppercase;">
+                <button onclick="joinRoomAdmin()" class="warning" style="padding: 10px 15px; border-radius: 8px; font-weight: bold;">
+                    🛠️ 2. เข้าห้อง (แอดมิน)
+                </button>
+                <button onclick="joinRoom()" class="secondary" style="padding: 10px 15px; border-radius: 8px; font-weight: bold;">
+                    📱 3. เข้าห้อง (ดูคิว)
+                </button>
+            </div>
+
+            <hr style="width: 100%; border: 1px solid #ddd; margin: 15px 0;">
+
+            <!-- โซนสถิติหลังบ้าน -->
+            <button onclick="window.location.href='database.html'" class="success" style="font-size: 1.1rem; padding: 12px; border-radius: 8px; background: #27ae60; color: white; border: none; font-weight: bold; cursor: pointer;">
+                🌐 4. Hall of Fame (เพิ่ม/ลบคน)
+            </button>
+
+            <button onclick="window.location.href='history.html'" class="primary" style="font-size: 1.1rem; padding: 12px; border-radius: 8px; background: #8e44ad; color: white; border: none; font-weight: bold; cursor: pointer;">
+                📊 5. ประวัติ & คำนวณค่าใช้จ่าย
+            </button>
+
+        </div>
+    </div>
+
+    <!-- 🏟️ หน้าสนามหลัก -->
+    <div id="app-container" style="display: none;">
+        <div id="room-header" style="background: #2c3e50; color: white; padding: 15px; text-align: center; font-size: 1.5rem; border-radius: 8px; margin: 20px;">
+            🏠 รหัสห้อง: <span id="display-room-id" style="color: #f1c40f; font-weight: bold;">ยังไม่ได้เข้าห้อง</span>
+            <span id="display-role" style="font-size: 1rem; background: #e74c3c; padding: 5px 10px; border-radius: 12px; margin-left: 15px;"></span>
+        </div>
+
+        <div id="main-view">
+            <div id="courts-container" class="courts-area-grid"></div>
+            <div id="next-match-panel" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h4 style="margin-top: 0; display: flex; align-items: center; gap: 10px; color: #ffffff !important; margin-bottom: 10px;">
+                    📢 เตรียมตัวลงสนาม (Next Match)
+                    <span style="font-size: 0.8em; font-weight: normal; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 20px;">Auto Preview</span>
+                </h4>
+                <div id="next-match-list" style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; justify-content: flex-start;">
+                    <div style="text-align:center; color: #ddd; font-style: italic;">... กำลังคำนวณ ...</div>
+                </div>
+            </div>
+
+            <div class="bottom-data-section">
+                <div class="control-sidebar-container pastel-panel panel-blue">
+
+                    <div class="sidebar-controls-wrapper">
+                        <h3>🎮 ควบคุม</h3>
+                        <div class="control-panel">
+                            <div class="input-group">
+                                <label>คอร์ท:</label>
+                                <button onclick="updateCourts(-1)">-</button>
+                                <span id="court-count" style="font-weight:bold; width: 25px; text-align:center;">2</span>
+                                <button onclick="updateCourts(1)">+</button>
+                                <div style="flex:1"></div>
+                                <button class="warning" onclick="resetStatsOnly()">รีเซ็ต</button>
+                                <button class="danger" onclick="resetAll()">ล้าง</button>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.5); padding: 5px; border-radius: 6px; flex-wrap: wrap;">
+                            <input type="checkbox" id="ranked-mode-toggle" onchange="toggleRankedMode()" style="width: 18px; height: 18px;">
+                            <label for="ranked-mode-toggle" style="cursor: pointer; font-weight: bold; color: #c0392b;">🏆 Ranked Mode</label>
+
+                            <div style="width: 1px; height: 20px; background: #999; margin: 0 5px;"></div>
+
+                            <input type="checkbox" id="mmr-mode-toggle" onchange="toggleMMRMode()" style="width: 18px; height: 18px;">
+                            <label for="mmr-mode-toggle" style="cursor: pointer; font-weight: bold; color: #2980b9;">⚖️ MMR Mode</label>
+                        </div>
+                        <div class="control-panel">
+                            <textarea id="new-players" placeholder="วางชื่อ... (1.แปง, 2.เวฟ)"></textarea>
+                            <button class="primary" style="width:100%; margin-top:5px; background:#8e44ad;" onclick="openDbSelector()">
+                                📖 เลือกคนจาก Database
+                            </button>
+                            <div style="display:flex; gap:8px; margin-top:8px;">
+                                <button class="success" style="flex:1;" onclick="addPlayers()">+ เพิ่ม</button>
+                                <button class="secondary" onclick="openBookingModal('pair')">คู่</button>
+                                <button class="secondary" onclick="openBookingModal('match')">4</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sidebar-queue-wrapper">
+                        <h4 style="margin: 10px 0;">รอ (<span id="queue-count">0</span>)</h4>
+                        <div style="flex:1; max-height:300px; overflow-y:auto; padding-right:2px;">
+                            <ul id="player-queue" class="player-list"></ul>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; gap: 5px;">
+                    <h3>📊 แดชบอร์ด</h3>
+                    <div style="display:flex; gap:5px;">
+                        <select id="scope-select" onchange="updateDashboard()" style="padding:5px; border-radius:6px; font-weight:bold; background:#fff; border:1px solid #ccc; cursor:pointer;">
+                            <option value="today">📊 วันนี้</option>
+                            <option value="total">🌍 รวมทั้งหมด</option>
+                        </select>
+                        <select id="sort-select" onchange="updateDashboard()" style="padding:5px; border-radius:6px;">
+                            <option value="games_desc">เล่นเยอะสุด (Games ⬇)</option>
+                            <option value="games_asc">เล่นน้อยสุด (Games ⬆)</option>
+                            <option value="wins_desc">ชนะเยอะสุด (Wins ⬇)</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="flex:1; max-height: 450px; overflow-y:auto; border-radius:8px;">
+                    <table class="stats-table">
+                        <thead>
+                            <tr>
+                                <th width="10%">#</th>
+                                <th>ชื่อ</th>
+                                <th width="10%" style="color:#2980b9;">MMR</th>
+                                <th width="10%">P</th>
+                                <th width="10%">W</th>
+                                <th width="15%">%</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stats-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bottom-history-section pastel-panel panel-purple">
+                <h3>📜 ประวัติล่าสุด</h3>
+                <div style="max-height: 250px; overflow-y:auto; border-radius:8px;">
+                    <table class="stats-table">
+                        <thead><tr><th width="15%">เวลา</th><th width="10%">ที่</th><th>ทีมชนะ (Win)</th><th>ทีมแพ้ (Lose)</th><th width="10%">เวลา</th></tr></thead>
+                        <tbody id="match-log-body"><tr><td colspan="5" style="color:gray;">-</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="nav-bar">
+                <button class="dark" style="width:100%; max-width:300px; padding:12px;" onclick="toggleView('overview')">📄 ไปหน้าภาพรวม (Overview)</button>
+            </div>
+        </div>
+
+        <div id="overview-view" class="hidden">
+            <div class="pastel-panel panel-white" id="summary-capture-area">
+                <h2 style="text-align:center; border-bottom:2px solid #2c3e50; padding-bottom:10px;">🏸 สรุปผลการตีแบดมินตัน</h2>
+                <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:20px;">
+                    <div style="flex:2; min-width:300px;">
+                        <h4>รายชื่อ & สถิติ</h4>
+                        <table class="stats-table">
+                            <thead><tr><th>ชื่อ</th><th>Check-in</th><th>เล่น (Games)</th><th>ชนะ (Wins)</th><th>ค่าเน็ต (บาท)</th></tr></thead>
+                            <tbody id="overview-stats-body"></tbody>
+                        </table>
+                    </div>
+                    <div style="flex:1; min-width:300px; background:#f9f9f9; padding:15px; border-radius:12px; border:1px solid #ddd;">
+                        <h4>💰 คำนวณค่าใช้จ่าย</h4>
+                        <div class="input-group"><label style="flex:1;">จำนวนคอร์ท:</label><input type="number" id="calc-court-count" value="2" style="width:60px; padding:5px;" onchange="updateCost()"></div>
+                        <div class="input-group"><label style="flex:1;">ราคาคอร์ท/ชม.:</label><input type="number" id="calc-court-price" value="180" style="width:60px; padding:5px;" onchange="updateCost()"></div>
+                        <div style="margin:5px 0;">
+                            <button class="mini-btn secondary" onclick="toggleCustomHours()">🕒 เวลาแต่ละคอร์ทไม่เท่ากัน?</button>
+                            <div id="custom-hours-area" style="display:none; margin-top:5px; padding:5px; border:1px dashed #ccc;"></div>
+                        </div>
+                        <div class="input-group" id="std-hours-group"><label style="flex:1;">จำนวน ชม. รวม:</label><input type="number" id="calc-hours" value="2" style="width:60px; padding:5px;" onchange="updateCost()"></div>
+                        <hr>
+                        <div class="input-group"><label style="flex:1;">ราคาลูก (ต่อหลอด):</label><input type="number" id="calc-shuttle-price" value="750" style="width:60px; padding:5px;" onchange="updateCost()"></div>
+                        <div class="input-group"><label style="flex:1;">ใช้ไป (ลูก):</label><input type="number" id="calc-shuttle-used" value="0" style="width:60px; padding:5px;" onchange="updateCost()"></div>
+                        <div class="cost-total">รวมทั้งหมด: <span id="total-cost-display">0</span> บาท</div>
+                        <small style="color:gray;">(หารเฉลี่ยตามจำนวนคนเอาเองนะ)</small>
+                    </div>
+                </div>
+                <div style="margin-top:20px;">
+                    <h4 style="color:#f9a825;">⚠️ เช็คคู่ซ้ำ (ที่เคยเกิดขึ้น)</h4>
+                    <table class="stats-table">
+                        <thead><tr><th>คู่ที่เจอกัน</th><th>จำนวนครั้ง</th></tr></thead>
+                        <tbody id="overview-repeat-body"><tr><td colspan="2">ไม่มีข้อมูล</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="nav-bar" style="gap:10px;">
+                <button class="secondary" onclick="toggleView('main')">↩ กลับหน้าสนาม</button>
+                <button class="success" onclick="endSession()">💾 จบการตีวันนี้ (Save Image)</button>
+                <a href="database.html" target="_blank" style="text-decoration:none;">
+                    <button class="warning" style="background:#f39c12; color:white; border:none; padding:8px 14px; border-radius:8px; font-weight:bold; cursor:pointer;">
+                        🌐 Hall of Fame (Database)
+                    </button>
+                </a>
+                <a href="history.html" target="_blank" style="text-decoration:none;">
+                    <button class="primary" style="background:#3498db; color:white; border:none; padding:8px 14px; border-radius:8px; font-weight:bold; cursor:pointer;">
+                        📈 ดูประวัติ
+                    </button>
+                </a>
+            </div>
+        </div>
+
+        <div id="booking-modal" class="modal">
+            <div class="modal-content">
+                <h3 style="margin-top:0;">จองคิว</h3>
+                <div id="booking-inputs" style="max-height: 200px; overflow-y: auto; margin: 15px 0;"></div>
+                <div class="modal-actions">
+                    <button class="secondary" onclick="closeModal('booking-modal')">ยกเลิก</button>
+                    <button class="success" onclick="confirmBooking()">ยืนยัน</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="winner-modal" class="modal">
+            <div class="modal-content" style="text-align:center;">
+                <h2>🏸 จบเกม!</h2>
+                <div class="modal-actions" style="justify-content: center; flex-direction: column; gap: 10px;">
+                    <button class="success" style="background:#ffcdd2; color:#b71c1c; border:2px solid #ef5350; padding:12px;" onclick="resolveGame(0)">ชมพู (บน) ชนะ</button>
+                    <button class="success" style="background:#bbdefb; color:#0d47a1; border:2px solid #42a5f5; padding:12px;" onclick="resolveGame(1)">ฟ้า (ล่าง) ชนะ</button>
+                    <hr style="width:100%; border-top:1px solid #eee; margin:5px 0;">
+                    <button class="warning" onclick="cancelStopGame()">↩ ยกเลิก (กดผิด)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+    <script src="state.js"></script>
+    <script src="matchmaker.js"></script>
+    <script src="firebase-sync.js"></script>
+    <script src="app.js"></script>
+
+    <div id="dbModal" class="db-modal">
+        <div class="db-modal-content">
+            <h3 style="margin-top:0; color:#2c3e50;">📖 เลือกจาก Database</h3>
+            <input type="text" id="dbSearch" placeholder="🔍 ค้นหาชื่อ..." onkeyup="filterDbPlayers()" style="padding:10px; width:100%; box-sizing:border-box; border-radius:8px; border:1px solid #ccc;">
+            <div id="dbPlayerList" class="db-player-list"></div>
+            <button class="secondary" style="margin-top:15px;" onclick="closeDbSelector()">↩ ย้อนกลับ / ปิด</button>
+        </div>
+    </div>
+
+    <div id="image-modal" class="modal" style="z-index: 2000;" onclick="closeBigImage()">
+        <div class="modal-content" style="text-align: center; background: transparent; box-shadow: none; padding: 0;" onclick="event.stopPropagation()">
+            <div style="background: white; padding: 15px; border-radius: 16px; display: inline-block; max-width: 90vw;">
+                <h3 id="big-image-name" style="margin: 0 0 10px 0; color: #2c3e50;">ชื่อ</h3>
+                <img id="big-image-view" src="" style="max-width: 100%; max-height: 60vh; border-radius: 8px; object-fit: contain; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                <button class="secondary" style="margin-top: 15px; width: 100%;" onclick="closeBigImage()">❌ ปิดรูป</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

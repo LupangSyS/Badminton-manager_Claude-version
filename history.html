@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Match History & Analytics (PRO)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f0f4f8; padding: 20px; color: #2c3e50; }
+        h1 { text-align: center; font-size: 2.5rem; text-transform: uppercase; margin-bottom: 5px; }
+        .container { max-width: 800px; margin: 0 auto; }
+
+        .day-card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .day-header { font-size: 1.5rem; font-weight: bold; color: #8e44ad; border-bottom: 2px solid #f0f4f8; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;}
+
+        .match-row { display: flex; align-items: center; justify-content: space-between; background: #f9f9f9; padding: 10px; border-radius: 8px; margin-bottom: 10px; border-left: 5px solid #27ae60; }
+        .team { display: flex; gap: 10px; align-items: center; width: 40%; flex-wrap: wrap; justify-content: center;}
+        .team.losers { flex-direction: row-reverse; }
+
+        .player-chip { display: flex; align-items: center; background: white; padding: 4px 10px; border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 0.9em; }
+        .mini-avatar { width: 28px; height: 28px; border-radius: 50%; margin-right: 8px; object-fit: cover; border: 1px solid #ccc; background: white;}
+        .vs-badge { background: #e74c3c; color: white; padding: 5px 10px; border-radius: 8px; font-weight: bold; font-size: 0.8em; }
+
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; background: #3498db; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.1);}
+        .btn:hover { opacity: 0.8; transform: translateY(-1px);}
+        .btn-warning { background: #f39c12; }
+        .btn-active { background: #2c3e50 !important; border: 2px solid #f1c40f;}
+
+        /* สไตล์ตารางวิเคราะห์รายคน */
+        .analytics-table { width:100%; border-collapse:collapse; text-align:left; margin-top: 15px;}
+        .analytics-table th { padding:12px; background: rgba(0,0,0,0.05); border-bottom: 2px solid #ddd; }
+        .analytics-table td { padding:12px; border-bottom: 1px solid #eee; }
+        .analytics-table tr:hover { background: #f9f9f9; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>📊 Data Analytics</h1>
+        <p style="text-align: center; color: #7f8c8d; margin-bottom: 20px;">ขุดคุ้ยข้อมูลเชิงลึก สถิติย้อนหลัง และวิเคราะห์คู่หู</p>
+
+        <div style="display: flex; gap: 10px; margin-bottom: 20px; justify-content: center;">
+            <button id="btn-tab-history" class="btn btn-active" onclick="switchTab('history')">📅 ประวัติรายวัน</button>
+            <button id="btn-tab-partner" class="btn btn-warning" onclick="switchTab('partner')">🤝 สถิติคู่หู (รายบุคคล)</button>
+        </div>
+
+        <div id="content-area">
+            <div style="text-align:center;">กำลังขุดคุ้ยข้อมูลจาก Database... ⏳</div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+
+    <script>
+        // 🛡️ ป้องกัน XSS ตอนแทรกชื่อผู้เล่นลงหน้าเว็บ
+        function sanitizeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>'"]/g, tag => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+            }[tag] || tag));
+        }
+
+        // Note: this apiKey is safe to be public — see the note in firebase-sync.js.
+        const firebaseConfig = {
+            apiKey: "AIzaSyCnrkEbVOM3i7f59rAnWN9mgPC9iekEuIA",
+            authDomain: "badminton-manager-e77bb.firebaseapp.com",
+            projectId: "badminton-manager-e77bb",
+            storageBucket: "badminton-manager-e77bb.firebasestorage.app",
+            messagingSenderId: "402072472322",
+            appId: "1:402072472322:web:a212ed6eaff7ec10fbd01b",
+            measurementId: "G-2EFE485QTK"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let allMatches = [];
+        let groupedMatches = {}; // เก็บแยกรายวัน
+        let playerProfiles = {};
+
+        let currentTab = 'history';
+        let currentAnalyzedPlayer = '';
+        let currentPlayerPartnerStats = []; // เก็บสถิติเวลาจิ้มดูรายคน
+
+        async function fetchData() {
+            try {
+                const profileSnap = await db.collection('players_profile').get();
+                profileSnap.forEach(doc => { playerProfiles[doc.id] = doc.data(); });
+
+                const roomSnap = await db.collection('rooms').get();
+                let rawMatches = [];
+
+                roomSnap.forEach(doc => {
+                    const roomData = doc.data();
+                    const roomId = doc.id;
+
+                    if (roomData.matchLogs && roomData.matchLogs.length > 0) {
+                        const day = roomId.substring(0, 2);
+                        const month = roomId.substring(2, 4);
+                        const dateStr = `${day}/${month}`;
+                        const sortKey = parseInt(month + day);
+
+                        roomData.matchLogs.forEach(log => {
+                            if (!log.winners || !log.losers) return;
+                            const winArray = log.winners.split(',').map(n => n.trim()).filter(n => n);
+                            const loseArray = log.losers.split(',').map(n => n.trim()).filter(n => n);
+
+                            rawMatches.push({
+                                date: dateStr, sortMonthDay: sortKey, time: log.time || "00:00",
+                                duration: log.duration || "-", winners: winArray, losers: loseArray
+                            });
+                        });
+                    }
+                });
+
+                rawMatches.sort((a, b) => {
+                    if (b.sortMonthDay !== a.sortMonthDay) return b.sortMonthDay - a.sortMonthDay;
+                    return b.time.localeCompare(a.time);
+                });
+
+                allMatches = rawMatches;
+
+                groupedMatches = {};
+                allMatches.forEach(m => {
+                    if(!groupedMatches[m.date]) groupedMatches[m.date] = [];
+                    groupedMatches[m.date].push(m);
+                });
+
+                switchTab('history');
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('content-area').innerHTML = '<div style="color:red; text-align:center;">โหลดไม่ขึ้นว่ะ เช็คเน็ตดิ๊!</div>';
+            }
+        }
+
+        function getAvatar(name) {
+            if (playerProfiles[name] && playerProfiles[name].avatarUrl) return playerProfiles[name].avatarUrl;
+            return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`;
+        }
+
+        // ===============================================
+        // 🔄 ระบบเปลี่ยนแท็บ
+        // ===============================================
+        function switchTab(tabName) {
+            currentTab = tabName;
+            document.getElementById('btn-tab-history').className = `btn ${tabName==='history'?'btn-active':'btn-warning'}`;
+            document.getElementById('btn-tab-history').style.background = tabName==='history'?'#2c3e50':'#3498db';
+
+            document.getElementById('btn-tab-partner').className = `btn ${tabName==='partner'?'btn-active':'btn-warning'}`;
+            document.getElementById('btn-tab-partner').style.background = tabName==='partner'?'#2c3e50':'#f39c12';
+
+            if (tabName === 'history') renderHistoryTab();
+            else renderPartnerTab();
+        }
+
+        // ===============================================
+        // 📅 แท็บที่ 1: ประวัติรายวัน (มี Dropdown ให้เลือกวัน)
+        // ===============================================
+        function renderHistoryTab() {
+            const container = document.getElementById('content-area');
+            const dates = Object.keys(groupedMatches);
+
+            if(dates.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:gray;">ยังไม่มีประวัติในระบบเลยว่ะ!</div>'; return;
+            }
+
+            let html = `
+            <div style="text-align:center; margin-bottom: 20px; background:white; padding:15px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.05);">
+                <label style="font-size:1.2em; font-weight:bold; margin-right:10px;">🔍 เลือกวันที่:</label>
+                <select id="date-selector" onchange="renderSpecificDate(this.value)" style="padding:10px; font-size:1.1em; border-radius:8px; border:2px solid #3498db; cursor:pointer;">
+            `;
+            dates.forEach(d => { html += `<option value="${sanitizeHTML(d)}">${sanitizeHTML(d)} (ตีไป ${groupedMatches[d].length} เกม)</option>`; });
+            html += `</select></div><div id="daily-match-list"></div>`;
+
+            container.innerHTML = html;
+            renderSpecificDate(dates[0]);
+        }
+
+        function renderSpecificDate(selectedDate) {
+            const matches = groupedMatches[selectedDate];
+            let html = `<div class="day-card"><h2 style="color:#8e44ad; border-bottom:2px solid #f0f4f8; padding-bottom:10px; margin-top:0;">📅 ประจำวันที่ ${sanitizeHTML(selectedDate)}</h2>`;
+
+            matches.forEach(m => {
+                // ✅ FIX: player names are sanitized before insertion (previously inserted raw)
+                const renderTeam = (teamArray) => teamArray.map(name => `
+                    <div class="player-chip">
+                        <img src="${getAvatar(name)}" class="mini-avatar"> ${sanitizeHTML(name)}
+                    </div>
+                `).join('');
+
+                html += `
+                    <div class="match-row">
+                        <div style="font-size:0.8em; color:gray; width:40px;">${sanitizeHTML(m.time)}</div>
+                        <div class="team">${renderTeam(m.winners)} <span style="color:#27ae60; font-size:1.2em;">👑</span></div>
+                        <div class="vs-badge">VS</div>
+                        <div class="team losers" style="opacity:0.8;">${renderTeam(m.losers)}</div>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+            document.getElementById('daily-match-list').innerHTML = html;
+        }
+
+        // ===============================================
+        // 🤝 แท็บที่ 2: วิเคราะห์คู่หู (กดเลือกชื่อคน)
+        // ===============================================
+        function renderPartnerTab() {
+            const container = document.getElementById('content-area');
+
+            const allNames = new Set(Object.keys(playerProfiles));
+            allMatches.forEach(m => {
+                m.winners.forEach(n => allNames.add(n));
+                m.losers.forEach(n => allNames.add(n));
+            });
+            const playerList = Array.from(allNames).sort();
+
+            let html = `
+            <div style="background:white; padding:20px; border-radius:12px; margin-bottom:20px; box-shadow:0 4px 6px rgba(0,0,0,0.05);">
+                <h3 style="margin-top:0; color:#2c3e50;">👇 จิ้มชื่อเพื่อดูสถิติ (Player Analytics)</h3>
+                <div style="display:flex; flex-wrap:wrap; gap:10px;">
+            `;
+
+            playerList.forEach(name => {
+                // ✅ FIX: name passed into onclick() is now URL-encoded, not the raw
+                // string. A raw name containing a quote (e.g. "O'Brien") used to
+                // break this button's onclick handler entirely — encoding avoids
+                // that, and analyzePlayer() decodes it back before using it.
+                const encName = encodeURIComponent(name);
+                html += `
+                <button class="btn" style="background:#f0f4f8; color:#2c3e50; border:1px solid #ccc; display:flex; align-items:center; gap:8px;" onclick="analyzePlayer('${encName}')">
+                    <img src="${getAvatar(name)}" class="mini-avatar" style="margin:0;"> ${sanitizeHTML(name)}
+                </button>`;
+            });
+
+            html += `</div></div><div id="player-analytics-result"></div>`;
+            container.innerHTML = html;
+        }
+
+        function analyzePlayer(encodedName) {
+            const playerName = decodeURIComponent(encodedName);
+            currentAnalyzedPlayer = playerName;
+            const stats = {};
+
+            allMatches.forEach(m => {
+                const isWinner = m.winners.includes(playerName);
+                const isLoser = m.losers.includes(playerName);
+
+                if (isWinner && m.winners.length === 2) {
+                    const partner = m.winners.find(n => n !== playerName);
+                    if(!stats[partner]) stats[partner] = { wins:0, total:0 };
+                    stats[partner].wins++; stats[partner].total++;
+                } else if (isLoser && m.losers.length === 2) {
+                    const partner = m.losers.find(n => n !== playerName);
+                    if(!stats[partner]) stats[partner] = { wins:0, total:0 };
+                    stats[partner].total++;
+                }
+            });
+
+            currentPlayerPartnerStats = Object.keys(stats).map(partner => ({
+                name: partner,
+                wins: stats[partner].wins,
+                total: stats[partner].total,
+                winRate: Math.round((stats[partner].wins / stats[partner].total) * 100)
+            }));
+
+            sortPlayerStats('total_desc');
+        }
+
+        function sortPlayerStats(sortType) {
+            if (sortType === 'total_desc') currentPlayerPartnerStats.sort((a,b) => b.total - a.total);
+            else if (sortType === 'wins_desc') currentPlayerPartnerStats.sort((a,b) => b.wins - a.wins);
+            else if (sortType === 'rate_desc') currentPlayerPartnerStats.sort((a,b) => b.winRate - a.winRate);
+
+            renderAnalyticsTable(sortType);
+        }
+
+        function renderAnalyticsTable(currentSort) {
+            const resultDiv = document.getElementById('player-analytics-result');
+
+            if(currentPlayerPartnerStats.length === 0) {
+                 resultDiv.innerHTML = `<div class="day-card" style="text-align:center; padding:40px;"><h3 style="color:#e74c3c;">"${sanitizeHTML(currentAnalyzedPlayer)}" ยังไม่เคยเล่นแบบคู่เลยว่ะ! (หรือประวัติหาย)</h3></div>`;
+                 return;
+            }
+
+            let html = `
+            <div class="day-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #8e44ad; padding-bottom:15px; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:15px;">
+                        <img src="${getAvatar(currentAnalyzedPlayer)}" style="width:60px; height:60px; border-radius:50%; border:3px solid #8e44ad;">
+                        <div>
+                            <h2 style="margin:0; color:#8e44ad;">สถิติคู่หูของ: ${sanitizeHTML(currentAnalyzedPlayer)}</h2>
+                            <span style="font-size:0.9em; color:gray;">เคยจับคู่กับคนอื่นไป ${currentPlayerPartnerStats.length} คน</span>
+                        </div>
+                    </div>
+                    <select onchange="sortPlayerStats(this.value)" style="padding:10px; border-radius:8px; font-weight:bold; font-size:1em; border:2px solid #ccc; cursor:pointer;">
+                        <option value="total_desc" ${currentSort==='total_desc'?'selected':''}>🔽 จับคู่เล่นเยอะสุด</option>
+                        <option value="wins_desc" ${currentSort==='wins_desc'?'selected':''}>🔽 พากันชนะเยอะสุด</option>
+                        <option value="rate_desc" ${currentSort==='rate_desc'?'selected':''}>🔽 % Win Rate สูงสุด</option>
+                    </select>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="analytics-table">
+                        <tr>
+                            <th>พาร์ทเนอร์ (คู่กับ)</th>
+                            <th style="text-align:center;">จำนวนเกมที่เล่นด้วยกัน</th>
+                            <th style="text-align:center;">ชนะ</th>
+                            <th style="text-align:center;">% ชนะ (Win Rate)</th>
+                        </tr>
+            `;
+
+            currentPlayerPartnerStats.forEach((p, idx) => {
+                const isTopRate = currentSort === 'rate_desc' && idx === 0 && p.winRate >= 50;
+                html += `
+                <tr>
+                    <td style="display:flex; align-items:center; gap:10px;">
+                        <img src="${getAvatar(p.name)}" class="mini-avatar" style="margin:0;">
+                        <strong style="font-size:1.1em;">${sanitizeHTML(p.name)}</strong> ${isTopRate ? '👑' : ''}
+                    </td>
+                    <td style="text-align:center; font-size:1.1em; color:#2c3e50;">${p.total}</td>
+                    <td style="text-align:center; font-size:1.1em; color:#27ae60; font-weight:bold;">${p.wins}</td>
+                    <td style="text-align:center;">
+                        <span style="background:${p.winRate >= 60 ? '#2ecc71' : (p.winRate <= 40 ? '#e74c3c' : '#f1c40f')}; color:white; padding:5px 12px; border-radius:20px; font-weight:bold; font-size:0.9em;">
+                            ${p.winRate}%
+                        </span>
+                    </td>
+                </tr>
+                `;
+            });
+
+            html += `</table></div></div>`;
+            resultDiv.innerHTML = html;
+        }
+
+        // เริ่มต้นรันสคริปต์
+        fetchData();
+
+        // ==========================================
+        // 💰 ฟังก์ชันเซฟบิลสรุปยอดลง Firebase
+        // (ยังไม่ได้เรียกใช้งานที่ไหนในระบบตอนนี้ — เก็บไว้เผื่ออนาคต ตามที่ตกลงกันไว้)
+        // ==========================================
+        async function saveBillToFirebase(roomId, billData) {
+            if (!roomId || !billData) {
+                console.error("ข้อมูลไม่ครบว่ะ เซฟไม่ได้!");
+                alert("⚠️ ข้อมูลหายไปไหนไม่รู้ เช็คระบบก่อนเซฟดิ๊!");
+                return;
+            }
+
+            try {
+                await db.collection('bills').doc(roomId).set({
+                    courtFee: billData.courtFee,
+                    shuttlePrice: billData.shuttlePrice,
+                    shuttleUsed: billData.shuttleUsed,
+                    totalCost: billData.totalCost,
+                    khunthongTotal: billData.khunthongTotal,
+                    directTotal: billData.directTotal,
+                    playersBill: billData.playersBill,
+                    savedAt: Date.now()
+                });
+
+                alert("💾 บันทึกบิลลง Database โคตรสมบูรณ์! ก๊อปยอดไปตั้งในขุนทองได้เลย!");
+
+            } catch (error) {
+                console.error("❌ เซฟบิลพลาด: ", error);
+                alert("เซฟไม่ติด");
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Database & Hall of Fame</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f0f4f8; padding: 20px; color: #2c3e50; }
+        h1 { text-align: center; font-size: 2.5rem; text-transform: uppercase; letter-spacing: 2px; }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .player-card {
+            background: white; border-radius: 16px; padding: 20px; text-align: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.08); transition: transform 0.2s;
+            position: relative; overflow: hidden;
+        }
+        .player-card:hover { transform: translateY(-5px); }
+        .avatar-img {
+            width: 100px; height: 100px; border-radius: 50%; object-fit: cover;
+            border: 4px solid #3498db; margin-bottom: 15px; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); background: #eee;
+        }
+        .rank-badge {
+            position: absolute; top: 15px; right: 15px; font-weight: bold;
+            padding: 5px 10px; border-radius: 8px; color: white; font-size: 0.9em;
+        }
+        .stat-row { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 8px 0; font-size: 0.9em;}
+        .stat-val { font-weight: bold; color: #2980b9; }
+        .btn-edit {
+            margin-top: 15px; padding: 8px 15px; background: #95a5a6; color: white;
+            border: none; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.8em;
+            transition: 0.2s;
+        }
+        .btn-edit:hover { background: #7f8c8d; }
+        .btn-edit.loading { background: #f39c12; cursor: wait; }
+    </style>
+</head>
+<body>
+
+    <h1>🏆 Hall of Fame</h1>
+    <p style="text-align: center;">ฐานข้อมูลผู้เล่นทั้งหมด (อัปโหลดรูปตรงขึ้น Firebase)</p>
+
+    <div class="grid-container" id="database-grid">
+        <div style="text-align:center; width:100%; grid-column: 1 / -1;">กำลังโหลดข้อมูลดาต้าเบส... ⏳</div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-storage-compat.js"></script>
+
+    <script>
+        // 🛡️ ป้องกัน XSS ตอนแทรกชื่อผู้เล่นลงหน้าเว็บ
+        function sanitizeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>'"]/g, tag => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+            }[tag] || tag));
+        }
+
+        // Note: this apiKey is safe to be public — Firebase web config is designed
+        // to be client-visible. Real access control lives in Firestore/Storage
+        // Security Rules (configured in the Firebase Console, not in this file).
+        const firebaseConfig = {
+            apiKey: "AIzaSyCnrkEbVOM3i7f59rAnWN9mgPC9iekEuIA",
+            authDomain: "badminton-manager-e77bb.firebaseapp.com",
+            projectId: "badminton-manager-e77bb",
+            storageBucket: "badminton-manager-e77bb.firebasestorage.app",
+            messagingSenderId: "402072472322",
+            appId: "1:402072472322:web:a212ed6eaff7ec10fbd01b",
+            measurementId: "G-2EFE485QTK"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+
+        const LEVEL_COLORS = { 'BG': '#bdbdbd', 'N': '#66bb6a', 'S': '#ffa726', 'P': '#ef5350' };
+
+        db.collection('players_profile').onSnapshot(snapshot => {
+            const grid = document.getElementById('database-grid');
+            grid.innerHTML = '';
+
+            let players = [];
+            snapshot.forEach(doc => { players.push(doc.data()); });
+
+            players.sort((a, b) => (b.mmr || 0) - (a.mmr || 0));
+
+            players.forEach(p => {
+                const rankColor = LEVEL_COLORS[p.level || 'BG'];
+                const safeName = sanitizeHTML(p.name); // for display text
+                // ✅ FIX: encoded token (not the raw or HTML-escaped name) used for the
+                // element id and the onclick argument — a raw name containing a quote
+                // (e.g. "O'Brien") used to break this button entirely.
+                const encName = encodeURIComponent(p.name);
+                const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random&color=fff&size=200`;
+                const avatar = p.avatarUrl || defaultAvatar;
+                const winRate = p.gamesPlayed > 0 ? Math.round((p.wins / p.gamesPlayed) * 100) : 0;
+
+                grid.innerHTML += `
+                    <div class="player-card">
+                        <div class="rank-badge" style="background: ${rankColor};">${p.level || 'BG'}</div>
+                        <img src="${avatar}" class="avatar-img" id="img-${encName}" title="คลิกเพื่อเปลี่ยนรูป" onclick="triggerUpload('${encName}')" onerror="this.src='${defaultAvatar}'">
+                        <h2 style="margin: 0 0 15px 0;">${safeName}</h2>
+
+                        <div class="stat-row"><span>⚔️ MMR:</span> <span class="stat-val" style="color:#8e44ad; font-size:1.1em;">${p.mmr || 100}</span></div>
+                        <div class="stat-row"><span>🏸 ลงเล่น:</span> <span class="stat-val">${p.gamesPlayed || 0} เกม</span></div>
+                        <div class="stat-row"><span>🏆 ชนะ:</span> <span class="stat-val">${p.wins || 0} ครั้ง</span></div>
+                        <div class="stat-row"><span>🔥 อัตราชนะ:</span> <span class="stat-val">${winRate}%</span></div>
+
+                        <button class="btn-edit" id="btn-${encName}" onclick="triggerUpload('${encName}')">📸 อัปโหลดรูป</button>
+                    </div>
+                `;
+            });
+        });
+
+        // ----------------------------------------------------
+        // 📸 ระบบอัปโหลดภาพ — ผ่าน Firebase Storage
+        // ✅ FIX: this used to POST straight to ImgBB with a hardcoded API key
+        // sitting in plain text in this file (visible to anyone via "view
+        // source"). Firebase Storage was already loaded but unused — now the
+        // upload goes through it instead, so there's no third-party key exposed
+        // in the client at all. Access is governed by your Firebase Storage
+        // Security Rules in the console (same place as your Firestore rules).
+        // If uploads fail with a permission error, check that Storage Rules
+        // allow writes — Firebase's default rules require a signed-in user,
+        // and this app doesn't use Firebase Auth, so you may need a rule like:
+        //   allow read, write: if true;
+        // (fine for a small trusted-group tool; tighten later if needed).
+        // ----------------------------------------------------
+        function triggerUpload(encodedName) {
+            const playerName = decodeURIComponent(encodedName);
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const btn = document.getElementById(`btn-${encodedName}`);
+                if(btn) { btn.innerText = "⏳ กำลังอัปโหลด..."; btn.classList.add('loading'); }
+
+                try {
+                    const safePathName = playerName.replace(/[^a-zA-Z0-9ก-๙_-]/g, '_');
+                    const storageRef = storage.ref(`avatars/${safePathName}_${Date.now()}`);
+                    await storageRef.put(file);
+                    const newImageUrl = await storageRef.getDownloadURL();
+
+                    await db.collection('players_profile').doc(playerName).update({
+                        avatarUrl: newImageUrl
+                    });
+                    console.log(`✅ อัปเดตรูป ${playerName} สำเร็จ!`);
+                } catch (err) {
+                    alert("❌ อัปโหลดรูปไม่ผ่านว่ะ! เช็คเน็ต หรือ Storage Rules ใน Firebase Console");
+                    console.error(err);
+                } finally {
+                    if(btn) { btn.innerText = "📸 อัปโหลดรูป"; btn.classList.remove('loading'); }
+                }
+            };
+
+            input.click();
+        }
+    </script>
+</body>
+</html>
