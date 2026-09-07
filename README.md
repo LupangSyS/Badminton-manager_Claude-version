@@ -1,0 +1,1 @@
+# Badminto-manager_Claude-version
