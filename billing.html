@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>หารเงิน - Badminton Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #4FCB8D; --accent-light: #7EE3AF; --amber: #FFB65C; --rose: #FF6F91;
+            --blue: #4FB3F0; --purple: #B980E8; --slate-border: rgba(226, 232, 240, 0.9);
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Prompt', 'Inter', sans-serif; background-color: #f8fafc; padding: 20px; color: #1e293b; margin: 0; }
+        .top-brand-bar {
+            background: #0f172a; color: white; padding: 14px 22px; border-radius: 16px;
+            display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; max-width: 900px; margin-left:auto; margin-right:auto;
+            box-shadow: 0 8px 20px -6px rgba(15, 23, 42, 0.35);
+        }
+        .top-brand-bar .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.15em; }
+        .top-brand-bar .brand-icon {
+            width: 36px; height: 36px; border-radius: 10px;
+            background: linear-gradient(135deg, #E08A2E 0%, var(--amber) 100%);
+            display: flex; align-items: center; justify-content: center; font-size: 1.2em;
+        }
+        .top-brand-bar a { color: #cbd5e1; text-decoration: none; font-size: 0.85em; font-weight: 600; padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,0.08); }
+        .top-brand-bar a:hover { background: rgba(255,255,255,0.16); }
+        p.subtitle { text-align: center; color: #64748b; margin: 0 0 25px 0; max-width: 900px; margin-left:auto; margin-right:auto; }
+
+        .wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+        .panel {
+            background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border: 1px solid var(--slate-border);
+            border-radius: 20px; padding: 22px; box-shadow: 0 10px 24px -8px rgba(15,23,42,0.08);
+        }
+        .panel h3 { margin: 0 0 16px 0; font-size: 1.1em; }
+        .panel h3 .n { display:inline-flex; width:24px; height:24px; border-radius:50%; background:var(--amber); color:white; align-items:center; justify-content:center; font-size:0.8em; margin-right:8px; }
+
+        label { display:block; font-size: 0.82em; font-weight: 700; margin-bottom: 5px; color: #64748b; }
+        select, input[type=number], input[type=time] {
+            width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc;
+            font-family: inherit; font-size: 1em;
+        }
+        .field { margin-bottom: 14px; }
+        .field-row { display: flex; gap: 12px; flex-wrap: wrap; }
+        .field-row > .field { flex: 1; min-width: 140px; }
+
+        .btn { cursor: pointer; padding: 11px 18px; border: none; border-radius: 999px; font-family: inherit; font-weight: 700; font-size: 0.92em; box-shadow: 0 3px 8px rgba(15,23,42,0.12); transition: 0.15s; }
+        .btn:hover { opacity: 0.92; transform: translateY(-1px); }
+        .btn-accent { background: var(--accent); color: white; }
+        .btn-blue { background: var(--blue); color: white; }
+        .btn-purple { background: var(--purple); color: white; }
+        .btn-grey { background: #94a3b8; color: white; }
+        .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+
+        .toggle-row { display:flex; align-items:center; gap:8px; margin-bottom: 14px; font-size:0.9em; font-weight:600; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.92em; }
+        th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #eef2f7; }
+        th { color: #64748b; font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.02em; }
+        td input[type=number] { width: 70px; padding: 6px; text-align:center; }
+        .name-cell { display:flex; align-items:center; gap:8px; }
+        .reset-btn { background:none; border:none; cursor:pointer; font-size:0.9em; padding:2px 4px; box-shadow:none; }
+        .reset-btn:hover { opacity:0.6; transform:none; }
+
+        .court-row-mini { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+        .court-row-mini label { margin:0; flex: 0 0 90px; }
+        .court-row-mini input { width: 80px; }
+
+        .hour-bucket { border-left: 4px solid var(--amber); background: rgba(255,182,92,0.08); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+        .hour-bucket .hb-top { display:flex; justify-content:space-between; font-weight:700; margin-bottom: 6px; }
+        .hour-bucket .hb-names { font-size: 0.85em; color: #475569; }
+        .hour-bucket .hb-price { color: var(--amber); }
+
+        .total-line { display:flex; justify-content:space-between; padding: 8px 0; font-size: 0.95em; }
+        .total-line.grand { font-weight: 800; font-size: 1.15em; border-top: 2px solid #e2e8f0; margin-top: 8px; padding-top: 12px; color: #0f172a; }
+
+        .empty-hint { text-align:center; color:#94a3b8; padding: 10px; font-size: 0.9em; }
+        .hidden { display:none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="top-brand-bar">
+        <div class="brand"><span class="brand-icon">🧮</span> หารเงิน</div>
+        <a href="index.html">🏠 หน้าแรก</a>
+    </div>
+    <p class="subtitle">ดึงประวัติวันที่เล่น (เวลาเช็คอินของแต่ละคน) มาคิดค่าคอร์ท + ค่าลูกขนไก่ แยกเป็นรายชั่วโมง — แก้ไขจำนวนชั่วโมงของใครก็ได้ก่อนสรุปยอด</p>
+
+    <div class="wrap">
+
+        <div class="panel" id="panel-pick-date">
+            <h3><span class="n">1</span>เลือกวันที่</h3>
+            <div class="field">
+                <label>เลือกห้อง/วันที่ที่จะคิดเงิน</label>
+                <select id="room-select" onchange="onRoomSelected()">
+                    <option value="">— กำลังโหลดรายชื่อห้อง... ⏳ —</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="panel hidden" id="panel-settings">
+            <h3><span class="n">2</span>ตั้งค่าคอร์ทและเวลา</h3>
+            <div class="field-row">
+                <div class="field">
+                    <label>เวลาปิดคอร์ท (เลิกเล่น)</label>
+                    <input type="time" id="closing-time" oninput="scheduleRecalc()">
+                </div>
+                <div class="field">
+                    <label>ราคาต่อคอร์ท/ชั่วโมง (บาท)</label>
+                    <input type="number" id="price-per-court-hour" value="140" min="0" oninput="scheduleRecalc()">
+                </div>
+                <div class="field">
+                    <label>จำนวนคอร์ท</label>
+                    <input type="number" id="court-count" value="2" min="1" max="12" oninput="onCourtCountChange()">
+                </div>
+            </div>
+
+            <div class="toggle-row">
+                <input type="checkbox" id="per-court-toggle" onchange="onPerCourtToggle()">
+                <label style="margin:0;">แต่ละคอร์ทเปิดเล่นเวลาไม่เท่ากัน (แก้ชั่วโมงแยกคอร์ทได้)</label>
+            </div>
+            <div id="per-court-rows" class="hidden" style="margin-bottom: 10px;"></div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label>ราคาลูกขนไก่/ลูก (บาท)</label>
+                    <input type="number" id="shuttle-price" value="0" min="0" oninput="scheduleRecalc()">
+                </div>
+                <div class="field">
+                    <label>จำนวนลูกที่ใช้ (ลูก)</label>
+                    <input type="number" id="shuttle-qty" value="0" min="0" oninput="scheduleRecalc()">
+                </div>
+                <div class="field">
+                    <label>รวมค่าลูกขนไก่</label>
+                    <input type="text" id="shuttle-total-display" value="0 บาท" disabled>
+                </div>
+            </div>
+            <p style="font-size:0.8em; color:#94a3b8; margin: 0;">ค่าลูกขนไก่จะถูกหารตามสัดส่วนชั่วโมงที่แต่ละคนเล่น (เล่นนานกว่า จ่ายค่าลูกเยอะกว่า)</p>
+        </div>
+
+        <div class="panel hidden" id="panel-players">
+            <h3><span class="n">3</span>รายชื่อคนเล่น & ชั่วโมงที่คิดเงิน</h3>
+            <p style="font-size:0.82em; color:#94a3b8; margin: 0 0 10px 0;">ค่าเริ่มต้นคำนวณจากเวลาเช็คอินถึงเวลาปิดคอร์ท (ปัดขึ้นเป็นชั่วโมงเต็ม) — แก้ตัวเลขในช่องได้เลยถ้าอยากปรับเอง</p>
+            <table>
+                <thead><tr><th>ชื่อ</th><th>เช็คอิน</th><th>ชั่วโมงที่คิดเงิน</th></tr></thead>
+                <tbody id="player-rows"></tbody>
+            </table>
+        </div>
+
+        <div class="btn-row hidden" id="calc-btn-row">
+            <button class="btn btn-accent" onclick="recalcNow()">🧮 คำนวณ</button>
+        </div>
+
+        <div class="panel hidden" id="panel-results">
+            <h3><span class="n">4</span>สรุปผลรายชั่วโมง</h3>
+            <div id="hourly-breakdown"></div>
+
+            <div style="margin-top: 18px; border-top: 1px dashed #e2e8f0; padding-top: 14px;">
+                <table>
+                    <thead><tr><th>ชื่อ</th><th>ชม.</th><th>ค่าคอร์ท</th><th>ค่าลูก</th><th>รวม</th></tr></thead>
+                    <tbody id="final-player-rows"></tbody>
+                </table>
+            </div>
+
+            <div class="total-line"><span>รวมค่าคอร์ททั้งวัน</span><span id="total-court-cost">0 บาท</span></div>
+            <div class="total-line"><span>รวมค่าลูกขนไก่</span><span id="total-shuttle-cost">0 บาท</span></div>
+            <div class="total-line grand"><span>ยอดรวมทั้งหมด</span><span id="grand-total">0 บาท</span></div>
+
+            <div class="btn-row">
+                <button class="btn btn-blue" onclick="copyLineSummary()">💬 คัดลอกสรุปส่ง LINE</button>
+                <button class="btn btn-purple" onclick="saveBill()">💾 บันทึกผลลง Firebase</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+
+    <script>
+        function sanitizeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>'"]/g, tag => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+            }[tag] || tag));
+        }
+
+        // Note: this apiKey is safe to be public — see database.html for the same note.
+        const firebaseConfig = {
+            apiKey: "AIzaSyCnrkEbVOM3i7f59rAnWN9mgPC9iekEuIA",
+            authDomain: "badminton-manager-e77bb.firebaseapp.com",
+            projectId: "badminton-manager-e77bb",
+            storageBucket: "badminton-manager-e77bb.firebasestorage.app",
+            messagingSenderId: "402072472322",
+            appId: "1:402072472322:web:a212ed6eaff7ec10fbd01b",
+            measurementId: "G-2EFE485QTK"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        const HOUR_MS = 60 * 60 * 1000;
+
+        let roomsCache = {};          // roomId -> raw room data
+        let selectedRoomId = null;
+        let selectedRoomLabel = '';
+        let sessionPlayers = [];      // [{name, checkInDate: Date, hours, touched}]
+        let courtRows = [];           // [{hours, touched}] used only when per-court split is on
+        let totalBuckets = 0;
+        let bucketStarts = [];        // Date[] — start time of each hour bucket
+        let lastResult = null;        // cached result of computeAll(), for save/copy
+        let recalcTimer = null;
+
+        // ==========================================
+        // 1) โหลดรายชื่อห้อง (วันที่) จาก Firebase
+        // ==========================================
+        async function loadRoomList() {
+            const select = document.getElementById('room-select');
+            try {
+                const snap = await db.collection('rooms').get();
+                const rooms = [];
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    if (!data.players || data.players.length === 0) return;
+                    const roomId = doc.id;
+                    const day = roomId.substring(0, 2);
+                    const month = roomId.substring(2, 4);
+                    if (!/^\d{2}$/.test(day) || !/^\d{2}$/.test(month)) return;
+                    const checkInCount = data.players.filter(p => p.checkInTime).length;
+                    if (checkInCount === 0) return;
+                    rooms.push({
+                        id: roomId,
+                        label: `${day}/${month} — ${roomId} (${checkInCount} คน)`,
+                        sortKey: parseInt(month + day + (data.lastUpdated ? new Date(data.lastUpdated).getTime() : 0)),
+                        lastUpdated: data.lastUpdated || null
+                    });
+                    roomsCache[roomId] = data;
+                });
+                rooms.sort((a, b) => {
+                    const at = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
+                    const bt = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
+                    return bt - at;
+                });
+
+                if (rooms.length === 0) {
+                    select.innerHTML = '<option value="">— ยังไม่มีข้อมูลห้องที่บันทึกไว้ —</option>';
+                    return;
+                }
+                select.innerHTML = '<option value="">— เลือกวันที่ —</option>' +
+                    rooms.map(r => `<option value="${sanitizeHTML(r.id)}">${sanitizeHTML(r.label)}</option>`).join('');
+            } catch (err) {
+                console.error(err);
+                select.innerHTML = '<option value="">โหลดไม่ขึ้น เช็คเน็ตดิ๊!</option>';
+            }
+        }
+
+        // ==========================================
+        // เลือกห้อง -> เตรียมรายชื่อผู้เล่น + ค่าเริ่มต้น
+        // ==========================================
+        function onRoomSelected() {
+            const roomId = document.getElementById('room-select').value;
+            document.getElementById('panel-settings').classList.add('hidden');
+            document.getElementById('panel-players').classList.add('hidden');
+            document.getElementById('panel-results').classList.add('hidden');
+            document.getElementById('calc-btn-row').classList.add('hidden');
+            if (!roomId) return;
+
+            const data = roomsCache[roomId];
+            selectedRoomId = roomId;
+            selectedRoomLabel = document.getElementById('room-select').selectedOptions[0].textContent;
+
+            const seen = new Set();
+            sessionPlayers = [];
+            (data.players || []).forEach(p => {
+                if (!p.checkInTime || !p.name || seen.has(p.name)) return;
+                seen.add(p.name);
+                sessionPlayers.push({ name: p.name, checkInDate: new Date(p.checkInTime), hours: 1, touched: false });
+            });
+            sessionPlayers.sort((a, b) => a.checkInDate - b.checkInDate);
+
+            if (sessionPlayers.length === 0) {
+                alert('ห้องนี้ไม่มีข้อมูลเช็คอินของผู้เล่นเลย เลือกวันอื่นดูนะ');
+                return;
+            }
+
+            document.getElementById('court-count').value = data.courtCount || 2;
+            document.getElementById('per-court-toggle').checked = false;
+            document.getElementById('per-court-rows').classList.add('hidden');
+            document.getElementById('per-court-rows').innerHTML = '';
+            courtRows = [];
+
+            // Default closing time = the moment this room was last saved (usually "End Session"),
+            // falling back to the latest check-in time if that's missing.
+            let closingGuess;
+            if (data.lastUpdated) closingGuess = new Date(data.lastUpdated);
+            else closingGuess = new Date(sessionPlayers[sessionPlayers.length - 1].checkInDate.getTime() + HOUR_MS);
+            const hh = String(closingGuess.getHours()).padStart(2, '0');
+            const mm = String(closingGuess.getMinutes()).padStart(2, '0');
+            document.getElementById('closing-time').value = `${hh}:${mm}`;
+
+            renderPlayerRows();
+            document.getElementById('panel-settings').classList.remove('hidden');
+            document.getElementById('panel-players').classList.remove('hidden');
+            document.getElementById('calc-btn-row').classList.remove('hidden');
+            document.getElementById('panel-results').classList.add('hidden');
+
+            recalcNow();
+        }
+
+        function onCourtCountChange() {
+            if (document.getElementById('per-court-toggle').checked) buildPerCourtRows();
+            scheduleRecalc();
+        }
+
+        function onPerCourtToggle() {
+            const on = document.getElementById('per-court-toggle').checked;
+            document.getElementById('per-court-rows').classList.toggle('hidden', !on);
+            if (on) buildPerCourtRows();
+            scheduleRecalc();
+        }
+
+        function buildPerCourtRows() {
+            const count = Math.max(1, parseInt(document.getElementById('court-count').value) || 1);
+            const wrap = document.getElementById('per-court-rows');
+            const prev = courtRows;
+            courtRows = [];
+            let html = '';
+            for (let i = 0; i < count; i++) {
+                const carry = prev[i] || { hours: totalBuckets || 1, touched: false };
+                courtRows.push({ hours: carry.hours, touched: carry.touched });
+                html += `
+                    <div class="court-row-mini">
+                        <label>คอร์ท ${i + 1}</label>
+                        <input type="number" min="0" step="1" value="${carry.hours}" id="court-hour-${i}"
+                            oninput="onCourtHourInput(${i})">
+                        <span style="font-size:0.8em; color:#94a3b8;">ชั่วโมง</span>
+                    </div>`;
+            }
+            wrap.innerHTML = html;
+        }
+
+        function onCourtHourInput(i) {
+            const val = parseFloat(document.getElementById(`court-hour-${i}`).value);
+            courtRows[i].hours = isNaN(val) ? 0 : val;
+            courtRows[i].touched = true;
+            scheduleRecalc();
+        }
+
+        function renderPlayerRows() {
+            const tbody = document.getElementById('player-rows');
+            tbody.innerHTML = sessionPlayers.map((p, i) => {
+                const timeStr = p.checkInDate.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                return `
+                <tr>
+                    <td>${sanitizeHTML(p.name)}</td>
+                    <td>${timeStr}</td>
+                    <td>
+                        <div class="name-cell">
+                            <input type="number" min="0" step="1" value="${p.hours}" id="player-hour-${i}" oninput="onPlayerHourInput(${i})">
+                            ${p.touched ? `<button class="reset-btn" title="รีเซ็ตเป็นค่าคำนวณอัตโนมัติ" onclick="resetPlayerHour(${i})">↺</button>` : ''}
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function onPlayerHourInput(i) {
+            const val = parseFloat(document.getElementById(`player-hour-${i}`).value);
+            sessionPlayers[i].hours = isNaN(val) ? 0 : val;
+            sessionPlayers[i].touched = true;
+            scheduleRecalc();
+        }
+
+        function resetPlayerHour(i) {
+            sessionPlayers[i].touched = false;
+            recalcNow();
+        }
+
+        function scheduleRecalc() {
+            if (recalcTimer) clearTimeout(recalcTimer);
+            recalcTimer = setTimeout(recalcNow, 400);
+        }
+
+        // ==========================================
+        // เครื่องคิดเลขหลัก
+        // ==========================================
+        function getClosingDate() {
+            const timeVal = document.getElementById('closing-time').value;
+            if (!timeVal || sessionPlayers.length === 0) return null;
+            const [hh, mm] = timeVal.split(':').map(Number);
+            const earliest = sessionPlayers[0].checkInDate;
+            const closing = new Date(earliest.getFullYear(), earliest.getMonth(), earliest.getDate(), hh, mm, 0, 0);
+            if (closing.getTime() <= earliest.getTime()) closing.setDate(closing.getDate() + 1);
+            return closing;
+        }
+
+        function recalcNow() {
+            if (sessionPlayers.length === 0) return;
+            const closing = getClosingDate();
+            if (!closing) return;
+
+            const earliest = sessionPlayers[0].checkInDate;
+            const flooredStart = new Date(earliest);
+            flooredStart.setMinutes(0, 0, 0);
+
+            totalBuckets = Math.max(1, Math.ceil((closing - flooredStart) / HOUR_MS));
+            bucketStarts = [];
+            for (let i = 0; i < totalBuckets; i++) bucketStarts.push(new Date(flooredStart.getTime() + i * HOUR_MS));
+
+            // Default hour count per player: round UP from check-in to closing time,
+            // clamped to the number of buckets that actually exist. Never touch a
+            // manually-edited value.
+            sessionPlayers.forEach(p => {
+                if (p.touched) return;
+                const rawHours = Math.ceil((closing - p.checkInDate) / HOUR_MS);
+                p.hours = Math.min(totalBuckets, Math.max(1, rawHours));
+            });
+            renderPlayerRows();
+
+            const perCourtOn = document.getElementById('per-court-toggle').checked;
+            if (perCourtOn) {
+                if (courtRows.length === 0) buildPerCourtRows();
+                courtRows.forEach((c, i) => {
+                    if (c.touched) return;
+                    c.hours = totalBuckets;
+                    const el = document.getElementById(`court-hour-${i}`);
+                    if (el) el.value = c.hours;
+                });
+            }
+
+            const totalCourts = Math.max(1, parseInt(document.getElementById('court-count').value) || 1);
+            const pricePerCourtHour = parseFloat(document.getElementById('price-per-court-hour').value) || 0;
+            const shuttlePrice = parseFloat(document.getElementById('shuttle-price').value) || 0;
+            const shuttleQty = parseFloat(document.getElementById('shuttle-qty').value) || 0;
+            const shuttleTotal = shuttlePrice * shuttleQty;
+            document.getElementById('shuttle-total-display').value = `${shuttleTotal.toLocaleString('th-TH')} บาท`;
+
+            // Bucket occupancy: a player/court with `hours` N occupies the LAST N buckets
+            // (i.e. counting back from closing time) — matches "everyone leaves together,
+            // people just arrive at different times."
+            const bucketInfo = [];
+            let totalCourtCost = 0;
+            for (let b = 0; b < totalBuckets; b++) {
+                let activeCourts;
+                if (perCourtOn) {
+                    activeCourts = courtRows.filter(c => (totalBuckets - c.hours) <= b).length;
+                } else {
+                    activeCourts = totalCourts;
+                }
+                const bucketCost = activeCourts * pricePerCourtHour;
+                const presentPlayers = sessionPlayers.filter(p => (totalBuckets - p.hours) <= b);
+                totalCourtCost += bucketCost;
+                bucketInfo.push({
+                    label: `${String(bucketStarts[b].getHours()).padStart(2, '0')}:${String(bucketStarts[b].getMinutes()).padStart(2, '0')} - ${String((bucketStarts[b].getHours() + 1) % 24).padStart(2, '0')}:${String(bucketStarts[b].getMinutes()).padStart(2, '0')}`,
+                    ordinal: b + 1,
+                    activeCourts, bucketCost,
+                    players: presentPlayers,
+                    perPersonShare: presentPlayers.length > 0 ? bucketCost / presentPlayers.length : 0
+                });
+            }
+
+            const sumHours = sessionPlayers.reduce((s, p) => s + p.hours, 0);
+            const playerResults = sessionPlayers.map(p => {
+                let courtFee = 0;
+                bucketInfo.forEach(b => { if (b.players.includes(p)) courtFee += b.perPersonShare; });
+                const shuttleFee = sumHours > 0 ? shuttleTotal * (p.hours / sumHours) : 0;
+                return { name: p.name, hours: p.hours, courtFee, shuttleFee, total: courtFee + shuttleFee };
+            });
+
+            lastResult = {
+                bucketInfo, playerResults, totalCourtCost, shuttleTotal,
+                grandTotal: totalCourtCost + shuttleTotal,
+                closing, totalCourts, pricePerCourtHour, perCourtOn,
+                courtHours: perCourtOn ? courtRows.map(c => c.hours) : null,
+                shuttlePrice, shuttleQty
+            };
+            renderResults();
+        }
+
+        function baht(n) { return `${Math.round(n).toLocaleString('th-TH')} บาท`; }
+
+        function renderResults() {
+            if (!lastResult) return;
+            const { bucketInfo, playerResults, totalCourtCost, shuttleTotal, grandTotal } = lastResult;
+
+            document.getElementById('hourly-breakdown').innerHTML = bucketInfo.map(b => `
+                <div class="hour-bucket">
+                    <div class="hb-top"><span>ชั่วโมงที่ ${b.ordinal} (${b.label})</span><span class="hb-price">${baht(b.bucketCost)}</span></div>
+                    <div class="hb-names">${b.activeCourts} คอร์ท • รับผิดชอบ: ${b.players.length > 0 ? b.players.map(p => sanitizeHTML(p.name)).join(', ') : '— ไม่มีใครอยู่ช่วงนี้ —'}</div>
+                </div>
+            `).join('') || '<div class="empty-hint">ยังไม่มีชั่วโมงให้คิดเงิน</div>';
+
+            document.getElementById('final-player-rows').innerHTML = playerResults.map(p => `
+                <tr>
+                    <td>${sanitizeHTML(p.name)}</td>
+                    <td>${p.hours}</td>
+                    <td>${baht(p.courtFee)}</td>
+                    <td>${baht(p.shuttleFee)}</td>
+                    <td><strong>${baht(p.total)}</strong></td>
+                </tr>
+            `).join('');
+
+            document.getElementById('total-court-cost').textContent = baht(totalCourtCost);
+            document.getElementById('total-shuttle-cost').textContent = baht(shuttleTotal);
+            document.getElementById('grand-total').textContent = baht(grandTotal);
+
+            document.getElementById('panel-results').classList.remove('hidden');
+        }
+
+        // ==========================================
+        // คัดลอกสรุปส่ง LINE
+        // ==========================================
+        async function copyLineSummary() {
+            if (!lastResult) return;
+            const { bucketInfo, playerResults, totalCourtCost, shuttleTotal, grandTotal } = lastResult;
+            let text = `🏸 สรุปค่าใช้จ่าย ${selectedRoomLabel}\n\n`;
+            bucketInfo.forEach(b => {
+                text += `⏰ ชม.${b.ordinal} (${b.label}): ${baht(b.bucketCost)} — ${b.players.length > 0 ? b.players.map(p => p.name).join(', ') : 'ไม่มีคนเล่น'}\n`;
+            });
+            if (shuttleTotal > 0) text += `🏸 ค่าลูกขนไก่: ${baht(shuttleTotal)} (หารตามสัดส่วนชั่วโมงเล่น)\n`;
+            text += `\n💰 รวมทั้งวัน: ${baht(grandTotal)}\n\n👤 ยอดแต่ละคน:\n`;
+            playerResults.forEach(p => { text += `${p.name}: ${baht(p.total)} (${p.hours} ชม.)\n`; });
+
+            try {
+                await navigator.clipboard.writeText(text);
+                alert('📋 คัดลอกสรุปแล้ว! ไปวางในไลน์ก๊วนได้เลย');
+            } catch (err) {
+                alert('คัดลอกไม่ได้ ลองก็อปเองจากช่องข้อความนี้แทน:\n\n' + text);
+            }
+        }
+
+        // ==========================================
+        // บันทึกผลลง Firebase (คอลเลกชัน bills เดิมที่เตรียมไว้ใน history.html)
+        // ==========================================
+        async function saveBill() {
+            if (!lastResult || !selectedRoomId) return;
+            if (!confirm('บันทึกผลสรุปยอดนี้ลง Firebase เลยไหม? (จะทับของเก่าถ้าห้องนี้เคยบันทึกไว้แล้ว)')) return;
+
+            const { bucketInfo, playerResults, totalCourtCost, shuttleTotal, grandTotal, closing, totalCourts, pricePerCourtHour, perCourtOn, courtHours, shuttlePrice, shuttleQty } = lastResult;
+            try {
+                await db.collection('bills').doc(selectedRoomId).set({
+                    roomLabel: selectedRoomLabel,
+                    closingTime: closing.toISOString(),
+                    courtCount: totalCourts,
+                    pricePerCourtHour, perCourtSplit: perCourtOn, courtHours,
+                    shuttlePrice, shuttleUsed: shuttleQty, shuttleTotal,
+                    courtFee: totalCourtCost,
+                    totalCost: grandTotal,
+                    hourlyBreakdown: bucketInfo.map(b => ({ label: b.label, cost: b.bucketCost, players: b.players.map(p => p.name) })),
+                    playersBill: playerResults,
+                    savedAt: Date.now()
+                });
+                alert('💾 บันทึกผลสรุปยอดเรียบร้อย!');
+            } catch (err) {
+                console.error(err);
+                alert('❌ บันทึกไม่สำเร็จ เช็คเน็ตแล้วลองใหม่');
+            }
+        }
+
+        loadRoomList();
+    </script>
+</body>
+</html>
