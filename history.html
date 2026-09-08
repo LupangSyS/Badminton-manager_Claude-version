@@ -75,12 +75,15 @@
         const db = firebase.firestore();
 
         let allMatches = [];
-        let groupedMatches = {}; // เก็บแยกรายวัน
+        let groupedMatches = {}; // เก็บแยกเป็นรายห้อง (roomId) ไม่ใช่แค่รายวัน — กันข้อมูลชนกันตอนแชร์เว็บให้เพื่อนสร้างห้องคนละห้องวันเดียวกัน
+        let roomMeta = {};        // roomId -> { dateStr, sortKey, suffix, lastUpdated, gameCount }
         let playerProfiles = {};
 
         let currentTab = 'history';
+        let currentRoomId = null;
+        let currentFocusPlayer = null;   // คนที่กดเลือกดูสถิติเฉพาะวัน/ห้องนี้
         let currentAnalyzedPlayer = '';
-        let currentPlayerPartnerStats = []; // เก็บสถิติเวลาจิ้มดูรายคน
+        let currentPlayerPartnerStats = []; // เก็บสถิติเวลาจิ้มดูรายคน (all-time, แท็บสถิติคู่หู)
 
         async function fetchData() {
             try {
@@ -89,6 +92,7 @@
 
                 const roomSnap = await db.collection('rooms').get();
                 let rawMatches = [];
+                roomMeta = {};
 
                 roomSnap.forEach(doc => {
                     const roomData = doc.data();
@@ -99,6 +103,13 @@
                         const month = roomId.substring(2, 4);
                         const dateStr = `${day}/${month}`;
                         const sortKey = parseInt(month + day);
+                        const suffix = roomId.includes('-') ? roomId.split('-')[1] : '';
+
+                        roomMeta[roomId] = {
+                            dateStr, sortKey, suffix,
+                            lastUpdated: roomData.lastUpdated ? new Date(roomData.lastUpdated).getTime() : 0,
+                            gameCount: roomData.matchLogs.length
+                        };
 
                         roomData.matchLogs.forEach(log => {
                             if (!log.winners || !log.losers) return;
@@ -106,7 +117,7 @@
                             const loseArray = log.losers.split(',').map(n => n.trim()).filter(n => n);
 
                             rawMatches.push({
-                                date: dateStr, sortMonthDay: sortKey, time: log.time || "00:00",
+                                roomId, date: dateStr, sortMonthDay: sortKey, time: log.time || "00:00",
                                 duration: log.duration || "-", winners: winArray, losers: loseArray
                             });
                         });
@@ -122,8 +133,8 @@
 
                 groupedMatches = {};
                 allMatches.forEach(m => {
-                    if(!groupedMatches[m.date]) groupedMatches[m.date] = [];
-                    groupedMatches[m.date].push(m);
+                    if(!groupedMatches[m.roomId]) groupedMatches[m.roomId] = [];
+                    groupedMatches[m.roomId].push(m);
                 });
 
                 switchTab('history');
@@ -159,38 +170,84 @@
         // ===============================================
         function renderHistoryTab() {
             const container = document.getElementById('content-area');
-            const dates = Object.keys(groupedMatches);
+            const roomIds = Object.keys(groupedMatches);
 
-            if(dates.length === 0) {
+            if(roomIds.length === 0) {
                 container.innerHTML = '<div style="text-align:center; color:gray;">ยังไม่มีประวัติในระบบเลยว่ะ!</div>'; return;
             }
 
+            roomIds.sort((a, b) => {
+                const ma = roomMeta[a] || {}, mb = roomMeta[b] || {};
+                if ((mb.lastUpdated || 0) !== (ma.lastUpdated || 0)) return (mb.lastUpdated || 0) - (ma.lastUpdated || 0);
+                return (mb.sortKey || 0) - (ma.sortKey || 0);
+            });
+
             let html = `
             <div style="text-align:center; margin-bottom: 20px; background:white; padding:15px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.05);">
-                <label style="font-size:1.2em; font-weight:bold; margin-right:10px;">🔍 เลือกวันที่:</label>
-                <select id="date-selector" onchange="renderSpecificDate(this.value)" style="padding:10px; font-size:1.1em; border-radius:8px; border:2px solid #3498db; cursor:pointer;">
+                <label style="font-size:1.2em; font-weight:bold; margin-right:10px;">🔍 เลือกวันที่/ห้อง:</label>
+                <select id="date-selector" onchange="onRoomSelectChange(this.value)" style="padding:10px; font-size:1.1em; border-radius:8px; border:2px solid #3498db; cursor:pointer;">
             `;
-            dates.forEach(d => { html += `<option value="${sanitizeHTML(d)}">${sanitizeHTML(d)} (ตีไป ${groupedMatches[d].length} เกม)</option>`; });
+            roomIds.forEach(rid => {
+                const meta = roomMeta[rid] || {};
+                const label = meta.suffix ? `${meta.dateStr} • ห้อง ${meta.suffix}` : meta.dateStr;
+                html += `<option value="${sanitizeHTML(rid)}">${sanitizeHTML(label)} (ตีไป ${groupedMatches[rid].length} เกม)</option>`;
+            });
             html += `</select></div><div id="daily-match-list"></div>`;
 
             container.innerHTML = html;
-            renderSpecificDate(dates[0]);
+            currentFocusPlayer = null;
+            renderSpecificDate(roomIds[0]);
         }
 
-        function renderSpecificDate(selectedDate) {
-            const matches = groupedMatches[selectedDate];
-            let html = `<div class="day-card"><h2 style="color:#8e44ad; border-bottom:2px solid #f0f4f8; padding-bottom:10px; margin-top:0;">📅 ประจำวันที่ ${sanitizeHTML(selectedDate)}</h2>`;
+        function onRoomSelectChange(roomId) {
+            currentFocusPlayer = null; // สลับห้อง/วันแล้ว เคลียร์ตัวกรองผู้เล่นเก่าทิ้ง
+            renderSpecificDate(roomId);
+        }
+
+        function renderSpecificDate(roomId) {
+            currentRoomId = roomId;
+            const matches = groupedMatches[roomId] || [];
+            const meta = roomMeta[roomId] || {};
+            const label = meta.suffix ? `${meta.dateStr} • ห้อง ${meta.suffix}` : meta.dateStr;
+
+            const namesInRoom = new Set();
+            matches.forEach(m => { m.winners.forEach(n => namesInRoom.add(n)); m.losers.forEach(n => namesInRoom.add(n)); });
+            const roomPlayerList = Array.from(namesInRoom).sort();
+
+            let html = `<div class="day-card">
+                <h2 style="color:#8e44ad; border-bottom:2px solid #f0f4f8; padding-bottom:10px; margin-top:0;">📅 ประจำวันที่ ${sanitizeHTML(label)}</h2>
+
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:0.85em; color:#7f8c8d; margin-bottom:8px;">👇 กดชื่อเพื่อดูสถิติของคนนั้น เฉพาะห้องนี้:</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px;">`;
+
+            roomPlayerList.forEach(name => {
+                // Name is URL-encoded before going into the onclick handler so a
+                // raw apostrophe (e.g. "O'Brien") can't break the button.
+                const encName = encodeURIComponent(name);
+                const active = currentFocusPlayer === name;
+                html += `<button class="btn" style="background:${active ? '#8e44ad' : '#f0f4f8'}; color:${active ? 'white' : '#2c3e50'}; border:1px solid #ccc; font-size:0.85em; padding:6px 12px;" onclick="focusRoomPlayer('${encName}')">${sanitizeHTML(name)}</button>`;
+            });
+            if (currentFocusPlayer) {
+                html += `<button class="btn btn-warning" style="font-size:0.85em; padding:6px 12px;" onclick="clearRoomFocus()">❌ ล้าง</button>`;
+            }
+            html += `</div></div>`;
+
+            if (currentFocusPlayer && namesInRoom.has(currentFocusPlayer)) {
+                html += renderRoomPlayerStatsHTML(matches, currentFocusPlayer);
+            }
 
             matches.forEach(m => {
+                const involved = currentFocusPlayer ? (m.winners.includes(currentFocusPlayer) || m.losers.includes(currentFocusPlayer)) : true;
                 // ✅ FIX: player names are sanitized before insertion (previously inserted raw)
                 const renderTeam = (teamArray) => teamArray.map(name => `
-                    <div class="player-chip">
+                    <div class="player-chip" style="${name === currentFocusPlayer ? 'border:2px solid #8e44ad;' : ''}">
                         <img src="${getAvatar(name)}" class="mini-avatar"> ${sanitizeHTML(name)}
                     </div>
                 `).join('');
 
                 html += `
-                    <div class="match-row">
+                    <div class="match-row" style="${involved ? '' : 'opacity:0.3;'}">
                         <div style="font-size:0.8em; color:gray; width:40px;">${sanitizeHTML(m.time)}</div>
                         <div class="team">${renderTeam(m.winners)} <span style="color:#27ae60; font-size:1.2em;">👑</span></div>
                         <div class="vs-badge">VS</div>
@@ -198,8 +255,112 @@
                     </div>
                 `;
             });
-            html += `</div>`;
+
+            html += `
+                <div style="margin-top:24px; padding-top:16px; border-top:1px dashed #e74c3c; text-align:center;">
+                    <button class="btn" style="background:#e74c3c;" onclick="deleteRoomLog('${roomId}')">🗑 ลบข้อมูลห้องนี้ทั้งหมด (Admin เท่านั้น)</button>
+                </div>
+            </div>`;
             document.getElementById('daily-match-list').innerHTML = html;
+        }
+
+        function focusRoomPlayer(encodedName) {
+            currentFocusPlayer = decodeURIComponent(encodedName);
+            renderSpecificDate(currentRoomId);
+        }
+
+        function clearRoomFocus() {
+            currentFocusPlayer = null;
+            renderSpecificDate(currentRoomId);
+        }
+
+        // สถิติของผู้เล่นคนเดียว เฉพาะภายในห้อง/วันที่กำลังดูอยู่ (ไม่ปนกับห้องอื่น)
+        function renderRoomPlayerStatsHTML(matches, playerName) {
+            let wins = 0, losses = 0;
+            const partners = {}, opponents = {};
+
+            matches.forEach(m => {
+                const isWinner = m.winners.includes(playerName);
+                const isLoser = m.losers.includes(playerName);
+                if (!isWinner && !isLoser) return;
+                if (isWinner) wins++; else losses++;
+
+                const myTeam = isWinner ? m.winners : m.losers;
+                const oppTeam = isWinner ? m.losers : m.winners;
+
+                const partner = myTeam.find(n => n !== playerName);
+                if (partner) {
+                    if (!partners[partner]) partners[partner] = { games: 0, wins: 0 };
+                    partners[partner].games++;
+                    if (isWinner) partners[partner].wins++;
+                }
+                oppTeam.forEach(opp => {
+                    if (!opponents[opp]) opponents[opp] = { games: 0, wins: 0 };
+                    opponents[opp].games++;
+                    if (isWinner) opponents[opp].wins++;
+                });
+            });
+
+            const total = wins + losses;
+            const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
+
+            const rowsHTML = (obj) => Object.keys(obj).length === 0
+                ? `<div style="color:#94a3b8; font-size:0.85em; padding:6px 0;">— ไม่มีข้อมูล —</div>`
+                : Object.entries(obj).sort((a, b) => b[1].games - a[1].games).map(([name, s]) => `
+                    <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f0f4f8; font-size:0.9em;">
+                        <span>${sanitizeHTML(name)}</span>
+                        <span>${s.wins}W-${s.games - s.wins}L (${s.games} เกม)</span>
+                    </div>
+                `).join('');
+
+            return `
+            <div style="background:#faf5ff; border:1px solid #e9d5ff; border-radius:12px; padding:16px; margin-bottom:16px;">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+                    <img src="${getAvatar(playerName)}" style="width:48px; height:48px; border-radius:50%; border:2px solid #8e44ad;">
+                    <div>
+                        <strong style="font-size:1.1em;">${sanitizeHTML(playerName)}</strong><br>
+                        <span style="font-size:0.85em; color:#7f8c8d;">เล่นวันนี้ ${total} เกม • ชนะ ${wins} • แพ้ ${losses} • Win Rate ${winRate}%</span>
+                    </div>
+                </div>
+                <div style="display:flex; gap:20px; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:180px;">
+                        <div style="font-weight:bold; font-size:0.85em; color:#8e44ad; margin-bottom:4px;">🤝 คู่หูวันนี้</div>
+                        ${rowsHTML(partners)}
+                    </div>
+                    <div style="flex:1; min-width:180px;">
+                        <div style="font-weight:bold; font-size:0.85em; color:#e74c3c; margin-bottom:4px;">⚔️ คู่แข่งที่เจอ</div>
+                        ${rowsHTML(opponents)}
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        // ==========================================
+        // 🗑 ลบ Log ของห้องนี้ทั้งหมด (เช่น ห้องทดสอบ) — ต้องยืนยัน + รหัสผ่านแอดมิน
+        // นี่เป็นแค่ด่านกันมือลั่นในหน้าเว็บ ไม่ใช่ระบบความปลอดภัยจริง
+        // (ของจริงต้องตั้งที่ Firestore Security Rules)
+        // ==========================================
+        async function deleteRoomLog(roomId) {
+            const meta = roomMeta[roomId] || {};
+            const label = meta.suffix ? `${meta.dateStr} • ห้อง ${meta.suffix}` : meta.dateStr;
+            if (!confirm(`⚠️ จะลบข้อมูลห้อง "${label}" (การแข่งขันทั้งหมดของห้องนี้) ทิ้งถาวร ทำต่อไหม?`)) return;
+
+            const pwd = prompt('พิมพ์รหัสผ่านแอดมินเพื่อยืนยันการลบ:');
+            if (pwd === null) return;
+            if (pwd !== 'siberian') { alert('❌ รหัสผ่านผิด ยกเลิกการลบ'); return; }
+
+            try {
+                await db.collection('rooms').doc(roomId).delete();
+                delete groupedMatches[roomId];
+                delete roomMeta[roomId];
+                allMatches = allMatches.filter(m => m.roomId !== roomId);
+                currentFocusPlayer = null;
+                alert('🗑 ลบข้อมูลห้องนี้เรียบร้อยแล้ว');
+                renderHistoryTab();
+            } catch (err) {
+                console.error(err);
+                alert('❌ ลบไม่สำเร็จ เช็คเน็ตแล้วลองใหม่');
+            }
         }
 
         // ===============================================
