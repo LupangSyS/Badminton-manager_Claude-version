@@ -951,8 +951,8 @@ function openFinishMatchModal(courtIdx) {
     document.getElementById('finish-team-names-0').innerText = nameList(0, 2);
     document.getElementById('finish-team-names-1').innerText = nameList(2, 4);
 
-    document.getElementById('finish-score-0').value = 21;
-    document.getElementById('finish-score-1').value = 0;
+    document.getElementById('finish-score-0').value = '';
+    document.getElementById('finish-score-1').value = '';
     pendingMatchWinner = null;
     updateWinnerButtons();
 
@@ -968,8 +968,11 @@ function onMatchScoreInput() {
     updateWinnerButtons();
 }
 
+// Tapping "ทีม X ชนะ" fills in the standard 21 points for that team as a
+// starting point — the host can still bump it up (e.g. 23-21) before saving.
 function setMatchWinner(teamIdx) {
     pendingMatchWinner = teamIdx;
+    document.getElementById(`finish-score-${teamIdx}`).value = 21;
     updateWinnerButtons();
 }
 
