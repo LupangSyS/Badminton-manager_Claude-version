@@ -404,6 +404,42 @@ function resetCourtsState() {
     renderCourts();
 }
 
+// Stops every court WITHOUT recording a finished game — used when ending the
+// session for the day, since a court still "playing" (or stuck at the
+// "who won?" popup) hasn't actually finished and shouldn't count as a scored
+// match, get MMR changes, or be left marked "playing" in Firebase forever.
+function stopAllCourtsWithoutScoring() {
+    // If the "who won?" popup is open, stopGame() already added this game to
+    // everyone's count in anticipation of picking a winner — undo that first,
+    // the same way "↩ ยกเลิก (กดผิด)" would.
+    if (activeGameResolveCourtId !== null) {
+        const pendingCourt = courts[activeGameResolveCourtId];
+        pendingCourt.players.forEach(p => {
+            const pl = players.find(x => x.id === p.id);
+            if (pl) {
+                pl.gamesPlayed = Math.max(0, pl.gamesPlayed - 1);
+                pl.sessionGames = Math.max(0, pl.sessionGames - 1);
+                pl.todayGames = Math.max(0, (pl.todayGames || 0) - 1);
+            }
+        });
+        const modal = document.getElementById('winner-modal');
+        if (modal) modal.style.display = 'none';
+        activeGameResolveCourtId = null;
+    }
+
+    courts.forEach(c => {
+        clearInterval(c.interval);
+        c.players.forEach(p => { if (p) sendToQueue(p.id); });
+        c.players = [];
+        c.state = 'empty';
+        c.timer = 0;
+        c.gameStartTime = null;
+        c.isOpened = false;
+        c.autoStartTarget = null;
+    });
+    renderCourts();
+}
+
 function updateCourts(change) {
     const newCount = courtCount + change;
     if (newCount < 1) return;
@@ -1050,6 +1086,16 @@ function updateCost() {
 }
 
 async function endSession() {
+    const anyCourtActive = courts.some(c => countRealPlayers(c) > 0);
+    if (anyCourtActive) {
+        if (!confirm('⚠️ ยังมีคอร์ทที่เล่นอยู่! ถ้าจบตอนนี้ทุกคอร์ทจะถูกหยุดทันที (เกมที่ค้างอยู่จะไม่ถูกนับเป็นเกมที่จบ) ต้องการดำเนินการต่อไหม?')) return;
+        stopAllCourtsWithoutScoring();
+    }
+
+    // Save right now instead of waiting for the usual debounced triggerSave()
+    // — we're about to reload the page, so a delayed save would never fire.
+    saveData();
+
     const element = document.getElementById("summary-capture-area");
     html2canvas(element).then(canvas => {
         const link = document.createElement('a');
