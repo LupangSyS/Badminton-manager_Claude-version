@@ -185,36 +185,35 @@
 
         <div id="overview-view" class="hidden">
             <div class="pastel-panel panel-white" id="summary-capture-area">
-                <h2 style="text-align:center; border-bottom:2px solid #2c3e50; padding-bottom:10px;">🏸 สรุปผลการตีแบดมินตัน</h2>
-                <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:20px;">
-                    <div style="flex:2; min-width:300px;">
-                        <h4>รายชื่อ & สถิติ</h4>
-                        <table class="stats-table">
-                            <thead><tr><th>ชื่อ</th><th>Check-in</th><th>เล่น (Games)</th><th>ชนะ (Wins)</th><th>ค่าเน็ต (บาท)</th></tr></thead>
-                            <tbody id="overview-stats-body"></tbody>
-                        </table>
-                    </div>
-                    <div style="flex:1; min-width:300px; background:#f9f9f9; padding:15px; border-radius:12px; border:1px solid #ddd;">
-                        <h4>💰 คำนวณค่าใช้จ่าย</h4>
-                        <div class="input-group"><label style="flex:1;">จำนวนคอร์ท:</label><input type="number" id="calc-court-count" value="2" style="width:60px; padding:5px;" onchange="updateCost()"></div>
-                        <div class="input-group"><label style="flex:1;">ราคาคอร์ท/ชม.:</label><input type="number" id="calc-court-price" value="180" style="width:60px; padding:5px;" onchange="updateCost()"></div>
-                        <div style="margin:5px 0;">
-                            <button class="mini-btn secondary" onclick="toggleCustomHours()">🕒 เวลาแต่ละคอร์ทไม่เท่ากัน?</button>
-                            <div id="custom-hours-area" style="display:none; margin-top:5px; padding:5px; border:1px dashed #ccc;"></div>
-                        </div>
-                        <div class="input-group" id="std-hours-group"><label style="flex:1;">จำนวน ชม. รวม:</label><input type="number" id="calc-hours" value="2" style="width:60px; padding:5px;" onchange="updateCost()"></div>
-                        <hr>
-                        <div class="input-group"><label style="flex:1;">ราคาลูก (ต่อหลอด):</label><input type="number" id="calc-shuttle-price" value="750" style="width:60px; padding:5px;" onchange="updateCost()"></div>
-                        <div class="input-group"><label style="flex:1;">ใช้ไป (ลูก):</label><input type="number" id="calc-shuttle-used" value="0" style="width:60px; padding:5px;" onchange="updateCost()"></div>
-                        <div class="cost-total">รวมทั้งหมด: <span id="total-cost-display">0</span> บาท</div>
-                        <small style="color:gray;">(หารเฉลี่ยตามจำนวนคนเอาเองนะ)</small>
-                    </div>
+                <div class="overview-banner">📋 สรุปผลการตีแบดมินตัน (Session Overview)</div>
+
+                <div class="kpi-row">
+                    <div class="kpi-tile"><div class="kpi-label">แมตช์ที่แข่งเสร็จ</div><div class="kpi-value" id="kpi-total-matches">0</div></div>
+                    <div class="kpi-tile"><div class="kpi-label">เวลาคอร์ทรวม</div><div class="kpi-value" id="kpi-total-time">0 นาที</div></div>
+                    <div class="kpi-tile"><div class="kpi-label">ผู้เล่นในก๊วน</div><div class="kpi-value kpi-blue" id="kpi-total-players">0 คน</div></div>
+                    <div class="kpi-tile"><div class="kpi-label">แต้มทั้งหมดที่ทำได้</div><div class="kpi-value kpi-amber" id="kpi-total-points">0</div></div>
                 </div>
+
+                <div class="award-row">
+                    <div class="award-card award-amber"><div class="award-title">👑 MVP วันนี้</div><div class="award-value" id="award-mvp">-</div><div class="award-sub">ชนะมากที่สุด และ Win Rate สูงสุด</div></div>
+                    <div class="award-card award-green"><div class="award-title">🐎 ม้าศึก (Ironman)</div><div class="award-value" id="award-ironman">-</div><div class="award-sub">ลงเล่นเกมมากที่สุดในก๊วน</div></div>
+                    <div class="award-card award-blue"><div class="award-title">🤝 คู่หูทองคำ (Best Duo)</div><div class="award-value" id="award-duo">-</div><div class="award-sub">คู่ที่ลงเล่นร่วมกันแล้วชนะเยอะที่สุด</div></div>
+                    <div class="award-card award-rose"><div class="award-title">🔥 แมตช์เดือดแห่งวัน</div><div class="award-value" id="award-closest">-</div><div class="award-sub">แมตช์คะแนนสูสีและดุเดือดที่สุด</div></div>
+                </div>
+
+                <div style="margin-top:20px;">
+                    <h4>📋 รายชื่อ & สถิติ (Player Performance)</h4>
+                    <table class="stats-table">
+                        <thead><tr><th>ชื่อ</th><th>Check-in</th><th>เล่น (Games)</th><th>ชนะ (Wins)</th><th>แพ้ (Loss)</th><th>Win %</th><th>ฟอร์ม 5 นัดหลัง</th></tr></thead>
+                        <tbody id="overview-stats-body"></tbody>
+                    </table>
+                </div>
+
                 <div style="margin-top:20px;">
                     <h4 style="color:#FFB65C;">⚠️ เช็คคู่ซ้ำ (ที่เคยเกิดขึ้น)</h4>
                     <table class="stats-table">
-                        <thead><tr><th>คู่ที่เจอกัน</th><th>จำนวนครั้ง</th></tr></thead>
-                        <tbody id="overview-repeat-body"><tr><td colspan="2">ไม่มีข้อมูล</td></tr></tbody>
+                        <thead><tr><th>คู่ที่เจอกัน</th><th>ประเภท</th><th>จำนวนครั้ง</th></tr></thead>
+                        <tbody id="overview-repeat-body"><tr><td colspan="3">ไม่มีข้อมูล</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -231,6 +230,9 @@
                         📈 ดูประวัติ
                     </button>
                 </a>
+                <button style="background:#4FCB8D; color:white; border:none; padding:8px 14px; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="copyLineGroupReport()">
+                    💬 คัดลอกสรุปส่ง LINE ก๊วน
+                </button>
             </div>
         </div>
 
