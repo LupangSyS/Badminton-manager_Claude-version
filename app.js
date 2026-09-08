@@ -466,6 +466,18 @@ function setCourtRule(courtIdx, newRule) {
     updateQueueDisplay();
     triggerSave();
 }
+
+function closeCourtRuleMenus() {
+    document.querySelectorAll('.mode-dropdown-menu').forEach(el => el.classList.add('hidden'));
+}
+function toggleCourtRuleMenu(event, courtIdx) {
+    event.stopPropagation();
+    const menu = document.getElementById(`court-rule-menu-${courtIdx}`);
+    const wasOpen = menu && !menu.classList.contains('hidden');
+    closeCourtRuleMenus();
+    if (menu && !wasOpen) menu.classList.remove('hidden');
+}
+window.addEventListener('click', closeCourtRuleMenus);
 function toggleRankFilter(idx) {
     courts[idx].isRankFilterOn = !courts[idx].isRankFilterOn;
     renderCourts(); triggerSave();
@@ -526,10 +538,15 @@ function renderCourts() {
         `;
 
         const ruleSelectHTML = `
-            <select class="court-rule-select" onchange="setCourtRule(${index}, this.value)" onclick="event.stopPropagation()">
-                <option value="normal" ${court.rule === 'normal' ? 'selected' : ''}>⛔ ออกหมด</option>
-                <option value="winner_stay" ${court.rule === 'winner_stay' ? 'selected' : ''}>👑 ครบ 2 เด้ง</option>
-            </select>`;
+            <div class="mode-dropdown" onclick="event.stopPropagation()">
+                <button class="mode-dropdown-btn" onclick="toggleCourtRuleMenu(event, ${index})" title="โหมดการเล่น: คลิกเพื่อสลับ">
+                    ${court.rule === 'winner_stay' ? '👑' : '⛔'} <span class="mode-dropdown-caret">▾</span>
+                </button>
+                <div class="mode-dropdown-menu hidden" id="court-rule-menu-${index}">
+                    <button class="${court.rule === 'normal' ? 'active' : ''}" onclick="setCourtRule(${index}, 'normal'); closeCourtRuleMenus();">⛔ ออกหมด</button>
+                    <button class="${court.rule === 'winner_stay' ? 'active' : ''}" onclick="setCourtRule(${index}, 'winner_stay'); closeCourtRuleMenus();">👑 ครบ 2 เด้ง</button>
+                </div>
+            </div>`;
 
         container.innerHTML += `
             <div class="court ${court.state === 'playing' ? 'is-playing' : ''}" id="court-${index}">
@@ -608,33 +625,10 @@ function renderCourtButtons(court, idx) {
         }
         return `<button class="success" style="width:100%;" onclick="startGame(${idx})">เริ่มเกม</button>`;
     }
-    const waiting = players.filter(p => p.status === 'waiting').sort((a,b) => a.joinedQueueAt - b.joinedQueueAt);
-    const head = waiting.length > 0 ? waiting[0] : null;
-    const needed = 4 - realCount;
-    let isBookingPair = false, isBookingFour = false, bookingSize = 0;
-
-    if (head && head.bookingId) {
-        const group = players.filter(p => p.bookingId === head.bookingId && p.status === 'waiting');
-        bookingSize = group.length;
-        if (bookingSize <= needed) {
-            if (bookingSize === 2) isBookingPair = true;
-            if (bookingSize === 4) isBookingFour = true;
-        }
-    }
-    const disabledStyle = "background:#e2e8f0; color:#94a3b8; cursor:not-allowed; box-shadow:none;";
-    const activePairStyle = "background:#a855f7; color:white;";
-    const activeFourStyle = "background:#7e22ce; color:white;";
-
     return `
-        <div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">
-            <div style="display:flex; gap:4px;">
-                <button class="secondary" style="flex:1; font-size:0.85em; padding:6px;" onclick="fillCourtSmart(${idx})">🎲 สุ่ม</button>
-                <button class="dark" style="flex:1; font-size:0.85em; padding:6px;" onclick="fillCourtQueue(${idx})">⏩ ตามคิว</button>
-            </div>
-            <div style="display:flex; gap:4px;">
-                <button style="flex:1; font-size:0.78em; padding:5px; border-radius:10px; ${isBookingPair ? activePairStyle : disabledStyle}" ${isBookingPair ? `onclick="fillCourtSmart(${idx})"` : 'disabled'}>👥 จองคู่ ${isBookingPair ? '✅' : ''}</button>
-                <button style="flex:1; font-size:0.78em; padding:5px; border-radius:10px; ${isBookingFour ? activeFourStyle : disabledStyle}" ${isBookingFour ? `onclick="fillCourtSmart(${idx})"` : 'disabled'}>⚔️ จอง 4 ${isBookingFour ? '✅' : ''}</button>
-            </div>
+        <div style="display:flex; gap:4px; margin-top:2px;">
+            <button class="secondary" style="flex:1; font-size:0.85em; padding:6px;" onclick="fillCourtSmart(${idx})">🎲 สุ่ม</button>
+            <button class="dark" style="flex:1; font-size:0.85em; padding:6px;" onclick="fillCourtQueue(${idx})">⏩ ตามคิว</button>
         </div>`;
 }
 
@@ -666,6 +660,7 @@ const fillCourtSmart = (courtIdx) => {
     const needed = 4 - existingPlayers.length;
     const waiting = players.filter(p => p.status === 'waiting' && !p.isResting && !p.bookingId).sort((a, b) => a.joinedQueueAt - b.joinedQueueAt);
     const headOfQueue = waiting.length > 0 ? waiting[0] : null;
+    const allWaitingCount = players.filter(p => p.status === 'waiting' && !p.isResting).length;
 
     let rankFilter = null;
     if (court.isRankFilterOn) {
@@ -675,10 +670,17 @@ const fillCourtSmart = (courtIdx) => {
     // Cooldown logic only applies to All-Out mode filling a fully empty court
     const useCooldown = (court.rule !== 'winner_stay' && needed === 4 && existingPlayers.length === 0);
 
-    let candidates = getSmartDraft(needed, new Set(), existingPlayers, false, rankFilter, useCooldown);
-    if (candidates.length === 0 && waiting.length >= needed) {
-        candidates = getSmartDraft(needed, new Set(), existingPlayers, true, rankFilter, useCooldown);
-    }
+    // A booked pair/group sitting far back in the queue shouldn't get pulled
+    // in early just because they happen to be booked — only let a random fill
+    // consider them if the whole group is near the front of the queue.
+    const farBookingIds = getFarBookingIds();
+
+    let candidates = getSmartDraft(needed, farBookingIds, existingPlayers, false, rankFilter, useCooldown);
+    if (candidates.length === 0) candidates = getSmartDraft(needed, farBookingIds, existingPlayers, true, rankFilter, useCooldown);
+    // If excluding far bookings leaves nobody eligible at all, fall back to
+    // allowing them rather than blocking the court from filling.
+    if (candidates.length === 0) candidates = getSmartDraft(needed, new Set(), existingPlayers, false, rankFilter, useCooldown);
+    if (candidates.length === 0) candidates = getSmartDraft(needed, new Set(), existingPlayers, true, rankFilter, useCooldown);
 
     if (candidates.length === 0) {
         alert('❌ คนในคิว (ที่ตรงตามเงื่อนไข Rank) ไม่พอครับ');
@@ -700,18 +702,103 @@ const fillCourtSmart = (courtIdx) => {
         headOfQueue._unresolvedSkip = false;
     }
 
+    // A booked pair/group made it into the draft — ask before seating them,
+    // since the host might want to reroll for someone else instead.
+    if (candidates.some(p => p.bookingId)) {
+        showBookingConfirm(courtIdx, candidates, needed, rankFilter, useCooldown, allWaitingCount);
+        return;
+    }
+
+    finishSmartFill(courtIdx, candidates, useCooldown, allWaitingCount);
+};
+
+function finishSmartFill(courtIdx, candidates, useCooldown, waitingCount) {
     if (useCooldown) {
         const violations = getCooldownViolations(candidates);
         // Only ask for confirmation if there WAS another option — with exactly
-        // `needed` people waiting, there's no alternative combination anyway.
-        if (violations.length > 0 && waiting.length > needed) {
+        // as many people waiting as needed, there's no alternative combination anyway.
+        if (violations.length > 0 && waitingCount > candidates.length) {
             showCooldownConfirm(courtIdx, candidates, violations);
             return; // wait for the user's Yes/No
         }
     }
-
     assignTeamToCourt(courtIdx, candidates);
-};
+}
+
+// A booked pair/group only counts as "ready" for a random fill if EVERY
+// member is already within the front `frontLimit` spots of the queue —
+// otherwise a booking made far back in line would unfairly jump the queue.
+function getFarBookingIds(frontLimit = 4) {
+    const orderedWaiting = players.filter(p => p.status === 'waiting' && !p.isResting).sort((a, b) => a.joinedQueueAt - b.joinedQueueAt);
+    const groupMaxPos = {};
+    orderedWaiting.forEach((p, i) => {
+        if (p.bookingId) groupMaxPos[p.bookingId] = Math.max(groupMaxPos[p.bookingId] || 0, i + 1);
+    });
+    const farIds = new Set();
+    orderedWaiting.forEach(p => {
+        if (p.bookingId && groupMaxPos[p.bookingId] > frontLimit) farIds.add(p.id);
+    });
+    return farIds;
+}
+
+let pendingBookingChoice = null;
+
+function showBookingConfirm(courtIdx, team, needed, rankFilter, useCooldown, waitingCount) {
+    pendingBookingChoice = { courtIdx, team, needed, rankFilter, useCooldown, waitingCount };
+    const bookingId = team.find(p => p.bookingId).bookingId;
+    const groupNames = team.filter(p => p.bookingId === bookingId).map(p => sanitizeHTML(p.name)).join(' + ');
+
+    let overlay = document.getElementById('booking-confirm-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'booking-confirm-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,0.6);z-index:2000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+        document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = `
+        <div style="background:white;padding:22px;border-radius:16px;width:340px;max-width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+            <h3 style="margin:0 0 10px;color:#0f172a;">🔒 มีคนจองคิวไว้ในคอมโบนี้</h3>
+            <p style="font-size:0.9em;color:#555;"><strong>${groupNames}</strong> จองคิวไว้ด้วยกันและสุ่มมาโดนพอดี ต้องการให้ลงคอร์ทนี้เลยไหม หรือสุ่มใหม่โดยเว้นคู่นี้ไว้ก่อน (พวกเขายังอยู่ในคิวรอตามเดิม)?</p>
+            <div style="display:flex;gap:8px;margin-top:14px;">
+                <button onclick="resolveBookingConfirm('reroll')" style="flex:1;padding:10px;border-radius:10px;border:none;background:#e2e8f0;color:#334155;cursor:pointer;">🔁 สุ่มใหม่</button>
+                <button onclick="resolveBookingConfirm('assign')" style="flex:1;padding:10px;border-radius:10px;border:none;background:#059669;color:white;cursor:pointer;">✅ ลงเลย</button>
+            </div>
+        </div>`;
+    overlay.style.display = 'flex';
+}
+
+function resolveBookingConfirm(choice) {
+    const overlay = document.getElementById('booking-confirm-overlay');
+    if (overlay) overlay.style.display = 'none';
+    if (!pendingBookingChoice) return;
+    const { courtIdx, team, needed, rankFilter, useCooldown, waitingCount } = pendingBookingChoice;
+    pendingBookingChoice = null;
+
+    if (choice === 'assign') {
+        finishSmartFill(courtIdx, team, useCooldown, waitingCount);
+        return;
+    }
+
+    // Reroll: exclude everyone in that booking group and draw again — they
+    // stay in the queue untouched for next time.
+    const bookingId = team.find(p => p.bookingId).bookingId;
+    const excludeIds = new Set(players.filter(p => p.bookingId === bookingId).map(p => p.id));
+    const court = courts[courtIdx];
+    const existingPlayers = court.players.filter(p => p !== null && p !== undefined);
+    let retry = getSmartDraft(needed, excludeIds, existingPlayers, false, rankFilter, useCooldown);
+    if (retry.length === 0) retry = getSmartDraft(needed, excludeIds, existingPlayers, true, rankFilter, useCooldown);
+    if (retry.length === 0) {
+        alert('❌ คนในคิว (ไม่รวมคู่ที่จองไว้) ไม่พอครับ');
+        return;
+    }
+    if (retry.length === 4) retry = autoBalanceTeam(retry);
+
+    if (retry.some(p => p.bookingId)) {
+        showBookingConfirm(courtIdx, retry, needed, rankFilter, useCooldown, waitingCount);
+    } else {
+        finishSmartFill(courtIdx, retry, useCooldown, waitingCount);
+    }
+}
 
 function assignTeamToCourt(courtIdx, candidates) {
     const court = courts[courtIdx];
@@ -848,7 +935,54 @@ function stopGame(courtIdx) {
                                 if(pl) {    pl.gamesPlayed++;
                                             pl.sessionGames++;
                                             pl.todayGames = (pl.todayGames || 0) + 1;} });
-    activeGameResolveCourtId = courtIdx; document.getElementById('winner-modal').style.display = 'flex';
+    activeGameResolveCourtId = courtIdx;
+    openFinishMatchModal(courtIdx);
+}
+
+let pendingMatchWinner = null;
+
+function openFinishMatchModal(courtIdx) {
+    const court = courts[courtIdx];
+    const ruleLabel = (court.rule === 'winner_stay') ? 'ครบ 2 เด้ง' : 'ออกหมด';
+    const courtLabelEl = document.getElementById('finish-modal-court-label');
+    if (courtLabelEl) courtLabelEl.innerText = `${court.customName || ('#' + (courtIdx + 1))} (โหมด: ${ruleLabel})`;
+
+    const nameList = (from, to) => court.players.slice(from, to).filter(Boolean).map(p => sanitizeHTML(p.name)).join(' + ') || '-';
+    document.getElementById('finish-team-names-0').innerText = nameList(0, 2);
+    document.getElementById('finish-team-names-1').innerText = nameList(2, 4);
+
+    document.getElementById('finish-score-0').value = 21;
+    document.getElementById('finish-score-1').value = 0;
+    pendingMatchWinner = null;
+    updateWinnerButtons();
+
+    document.getElementById('winner-modal').style.display = 'flex';
+}
+
+function onMatchScoreInput() {
+    const a = parseInt(document.getElementById('finish-score-0').value, 10) || 0;
+    const b = parseInt(document.getElementById('finish-score-1').value, 10) || 0;
+    if (a > b) pendingMatchWinner = 0;
+    else if (b > a) pendingMatchWinner = 1;
+    else pendingMatchWinner = null;
+    updateWinnerButtons();
+}
+
+function setMatchWinner(teamIdx) {
+    pendingMatchWinner = teamIdx;
+    updateWinnerButtons();
+}
+
+function updateWinnerButtons() {
+    const btn0 = document.getElementById('finish-winner-btn-0');
+    const btn1 = document.getElementById('finish-winner-btn-1');
+    if (btn0) btn0.classList.toggle('is-winner', pendingMatchWinner === 0);
+    if (btn1) btn1.classList.toggle('is-winner', pendingMatchWinner === 1);
+}
+
+function submitMatchResult() {
+    if (pendingMatchWinner === null) { alert('กรุณาเลือกทีมที่ชนะ หรือใส่คะแนนให้ไม่เท่ากันก่อนครับ'); return; }
+    resolveGame(pendingMatchWinner);
 }
 
 function cancelStopGame() {
@@ -883,12 +1017,21 @@ function resolveGame(winningTeamIdx) {
             }
         }
 
+        const scoreInput0 = document.getElementById('finish-score-0');
+        const scoreInput1 = document.getElementById('finish-score-1');
+        const score0 = scoreInput0 ? (parseInt(scoreInput0.value, 10) || 0) : null;
+        const score1 = scoreInput1 ? (parseInt(scoreInput1.value, 10) || 0) : null;
+        const scoreWin = winningTeamIdx === 0 ? score0 : score1;
+        const scoreLose = winningTeamIdx === 0 ? score1 : score0;
+
         const newLog = {
             time: new Date().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'}),
             court: activeGameResolveCourtId+1,
             winners: winners.map(p=>sanitizeHTML(p.name)).join(', '),
             losers: losers.map(p=>sanitizeHTML(p.name)).join(', '),
             duration: formatTime(court.timer),
+            scoreWin: scoreWin,
+            scoreLose: scoreLose,
         };
         matchLogs.unshift(newLog);
 
@@ -997,8 +1140,11 @@ const kickPlayer = (courtIdx, slotIdx) => {
 
 function renderMatchLog() {
     const tbody = document.getElementById('match-log-body');
-    if (matchLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="color:gray;">-</td></tr>'; return; }
-    tbody.innerHTML = matchLogs.map(log => `<tr><td>${log.time}</td><td>${log.court}</td><td class="log-winner">${log.winners}</td><td class="log-loser">${log.losers}</td><td>${log.duration}</td></tr>`).join('');
+    if (matchLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="color:gray;">-</td></tr>'; return; }
+    tbody.innerHTML = matchLogs.map(log => {
+        const scoreText = (log.scoreWin !== undefined && log.scoreWin !== null) ? `${log.scoreWin}-${log.scoreLose}` : '-';
+        return `<tr><td>${log.time}</td><td>${log.court}</td><td class="log-winner">${log.winners}</td><td class="log-loser">${log.losers}</td><td style="font-weight:bold;">${scoreText}</td><td>${log.duration}</td></tr>`;
+    }).join('');
 }
 
 function updateDashboard() {
@@ -1268,7 +1414,10 @@ function updateNextMatchPanel() {
     const ruleEl = document.getElementById('game-rule');
     const rule = ruleEl ? ruleEl.value : 'normal';
     const needed = (rule === 'winner_stay') ? 2 : 4;
-    let html = ''; let excludeIds = new Set();
+    let html = '';
+    // Keep this preview consistent with fillCourtSmart(): don't suggest a
+    // booked pair/group that's still far back in the queue as an imminent match.
+    let excludeIds = getFarBookingIds();
     const matchesToShow = Math.min(courtCount, 4);
 
     for (let i = 0; i < matchesToShow; i++) {

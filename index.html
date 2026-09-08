@@ -172,8 +172,8 @@
                 <h3>📜 ประวัติล่าสุด</h3>
                 <div style="max-height: 250px; overflow-y:auto; border-radius:8px;">
                     <table class="stats-table">
-                        <thead><tr><th width="15%">เวลา</th><th width="10%">ที่</th><th>ทีมชนะ (Win)</th><th>ทีมแพ้ (Lose)</th><th width="10%">เวลา</th></tr></thead>
-                        <tbody id="match-log-body"><tr><td colspan="5" style="color:gray;">-</td></tr></tbody>
+                        <thead><tr><th width="12%">เวลา</th><th width="8%">ที่</th><th>ทีมชนะ (Win) 🏆</th><th>ทีมแพ้ (Lose)</th><th width="10%">คะแนน</th><th width="10%">เวลา</th></tr></thead>
+                        <tbody id="match-log-body"><tr><td colspan="6" style="color:gray;">-</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -246,13 +246,33 @@
         </div>
 
         <div id="winner-modal" class="modal">
-            <div class="modal-content" style="text-align:center;">
-                <h2>🏸 จบเกม!</h2>
-                <div class="modal-actions" style="justify-content: center; flex-direction: column; gap: 10px;">
-                    <button class="success" style="background:#ffcdd2; color:#b71c1c; border:2px solid #ef5350; padding:12px;" onclick="resolveGame(0)">ชมพู (บน) ชนะ</button>
-                    <button class="success" style="background:#bbdefb; color:#0d47a1; border:2px solid #42a5f5; padding:12px;" onclick="resolveGame(1)">ฟ้า (ล่าง) ชนะ</button>
-                    <hr style="width:100%; border-top:1px solid #eee; margin:5px 0;">
-                    <button class="warning" onclick="cancelStopGame()">↩ ยกเลิก (กดผิด)</button>
+            <div class="modal-content" style="width:420px; max-width:92vw; text-align:left;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #eee; padding-bottom:12px; margin-bottom:14px;">
+                    <div>
+                        <h2 style="margin:0; font-size:1.2rem;">🏁 บันทึกผลการแข่งขัน</h2>
+                        <p id="finish-modal-court-label" style="margin:2px 0 0; font-size:0.8em; color:var(--accent); font-weight:700;">คอร์ท 1</p>
+                    </div>
+                    <button class="secondary mini-btn" style="font-size:1em; padding:4px 8px;" onclick="cancelStopGame()">✕</button>
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    <div class="finish-team-card team-a">
+                        <div class="finish-team-label">ทีม A (น้ำเงิน)</div>
+                        <div id="finish-team-names-0" class="finish-team-names"></div>
+                        <input type="number" id="finish-score-0" class="finish-score-input" min="0" max="45" value="21" oninput="onMatchScoreInput()">
+                        <button id="finish-winner-btn-0" class="finish-winner-btn" onclick="setMatchWinner(0)">🏆 ทีม A ชนะ</button>
+                    </div>
+                    <div class="finish-team-card team-b">
+                        <div class="finish-team-label">ทีม B (ส้ม)</div>
+                        <div id="finish-team-names-1" class="finish-team-names"></div>
+                        <input type="number" id="finish-score-1" class="finish-score-input" min="0" max="45" value="0" oninput="onMatchScoreInput()">
+                        <button id="finish-winner-btn-1" class="finish-winner-btn" onclick="setMatchWinner(1)">🏆 ทีม B ชนะ</button>
+                    </div>
+                </div>
+
+                <div class="modal-actions" style="flex-direction:column; gap:8px; margin-top:16px;">
+                    <button class="success" style="width:100%; padding:12px;" onclick="submitMatchResult()">💾 บันทึกผล &amp; อัปเดต MMR</button>
+                    <button class="secondary" style="width:100%;" onclick="cancelStopGame()">↩ ยกเลิก (กดผิด)</button>
                 </div>
             </div>
         </div>
