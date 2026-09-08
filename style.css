@@ -186,6 +186,7 @@ button.mini-btn { padding: 2px 6px; font-size: 0.75em; margin-left: auto; }
 .pill-btn.pill-blue { background: #4FB3F0; }
 .pill-btn.pill-green { background: var(--accent); }
 .pill-btn.pill-purple { background: #B980E8; }
+.pill-btn.pill-rose { background: var(--rose); }
 .pill-row { display: flex; gap: 10px; }
 .pill-row .pill-btn { flex: 1; padding: 12px 10px; font-size: 0.85em; }
 
