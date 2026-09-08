@@ -186,7 +186,6 @@ const addPlayerToCourt = (court, player) => {
 function init() {
     renderCourts();
     updateQueueDisplay();
-    updateCustomHoursInputs();
 
     if (loadData()) {
         console.log("📂 Loaded data from LocalStorage");
@@ -213,8 +212,6 @@ function init() {
     setInterval(() => {
         if (!isModalOpen()) updateQueueDisplay();
     }, 60000);
-
-    updateCustomHoursInputs();
 }
 
 function toggleView(viewName) {
@@ -455,8 +452,6 @@ function updateCourts(change) {
     if (newCount < 1) return;
     courtCount = newCount;
     document.getElementById('court-count').innerText = courtCount;
-    document.getElementById('calc-court-count').value = courtCount;
-    updateCustomHoursInputs();
     renderCourts();
 }
 
@@ -1195,68 +1190,149 @@ function updateDashboard() {
     }).join('');
 }
 
-function renderOverview(skipUpdateCost = false) {
+// Reads the last `limit` finished matches a player took part in (from
+// matchLogs, which is newest-first) and returns them oldest-to-newest as
+// 'W'/'L', for the "ฟอร์ม 5 นัดหลัง" column. Matches by display name against
+// the same sanitized winners/losers strings the match log already stores.
+function getPlayerRecentForm(player, limit = 5) {
+    const safeName = sanitizeHTML(player.name);
+    const form = [];
+    for (const log of matchLogs) {
+        if (form.length >= limit) break;
+        const winners = log.winners.split(', ');
+        const losers = log.losers.split(', ');
+        if (winners.includes(safeName)) form.push('W');
+        else if (losers.includes(safeName)) form.push('L');
+    }
+    return form.reverse();
+}
+
+// Computes the four "Daily Awards" cards from data already tracked this
+// session (todayGames/todayWins, matchLogs, and their scores) — no new
+// data storage needed.
+function calculateDailyAwards() {
+    const active = players.filter(p => (p.todayGames || 0) > 0);
+
+    let mvp = null;
+    active.forEach(p => {
+        const rate = p.todayWins / p.todayGames;
+        if (!mvp || p.todayWins > mvp.todayWins || (p.todayWins === mvp.todayWins && rate > (mvp.todayWins / mvp.todayGames))) mvp = p;
+    });
+
+    let ironman = null;
+    active.forEach(p => { if (!ironman || (p.todayGames || 0) > (ironman.todayGames || 0)) ironman = p; });
+
+    const pairWins = {};
+    matchLogs.forEach(log => {
+        const names = log.winners.split(', ');
+        if (names.length === 2) {
+            const key = [names[0], names[1]].sort().join(' + ');
+            pairWins[key] = (pairWins[key] || 0) + 1;
+        }
+    });
+    let bestDuo = null, bestDuoWins = 0;
+    for (const [key, wins] of Object.entries(pairWins)) {
+        if (wins > bestDuoWins) { bestDuoWins = wins; bestDuo = key; }
+    }
+
+    let closest = null, closestMargin = Infinity;
+    matchLogs.forEach(log => {
+        if (log.scoreWin === null || log.scoreWin === undefined) return;
+        const margin = Math.abs(log.scoreWin - log.scoreLose);
+        if (margin < closestMargin) { closestMargin = margin; closest = log; }
+    });
+
+    return { mvp, ironman, bestDuo, bestDuoWins, closest };
+}
+
+function renderOverview() {
     const statsBody = document.getElementById('overview-stats-body');
     const repeatBody = document.getElementById('overview-repeat-body');
-    statsBody.innerHTML = players.map(p => {
+
+    // --- KPI tiles ---
+    let totalSeconds = 0;
+    matchLogs.forEach(log => {
+        const [m, s] = (log.duration || '00:00').split(':').map(n => parseInt(n, 10) || 0);
+        totalSeconds += m * 60 + s;
+    });
+    let totalPoints = 0;
+    matchLogs.forEach(log => { if (log.scoreWin != null) totalPoints += (log.scoreWin + log.scoreLose); });
+
+    const kpiMatches = document.getElementById('kpi-total-matches');
+    const kpiTime = document.getElementById('kpi-total-time');
+    const kpiPlayers = document.getElementById('kpi-total-players');
+    const kpiPoints = document.getElementById('kpi-total-points');
+    if (kpiMatches) kpiMatches.innerText = matchLogs.length;
+    if (kpiTime) kpiTime.innerText = `${Math.round(totalSeconds / 60)} นาที`;
+    if (kpiPlayers) kpiPlayers.innerText = `${players.length} คน`;
+    if (kpiPoints) kpiPoints.innerText = totalPoints;
+
+    // --- Daily Awards ---
+    const awards = calculateDailyAwards();
+    const mvpEl = document.getElementById('award-mvp');
+    const ironmanEl = document.getElementById('award-ironman');
+    const duoEl = document.getElementById('award-duo');
+    const closestEl = document.getElementById('award-closest');
+    if (mvpEl) mvpEl.innerText = awards.mvp ? `${sanitizeHTML(awards.mvp.name)} (${awards.mvp.todayWins} Wins)` : '-';
+    if (ironmanEl) ironmanEl.innerText = awards.ironman ? `${sanitizeHTML(awards.ironman.name)} (${awards.ironman.todayGames} Games)` : '-';
+    if (duoEl) duoEl.innerText = awards.bestDuo ? `${awards.bestDuo} (${awards.bestDuoWins} Wins)` : '-';
+    if (closestEl) closestEl.innerText = awards.closest ? `คอร์ท ${awards.closest.court}: ${awards.closest.scoreWin}-${awards.closest.scoreLose}` : '-';
+
+    // --- Player performance table ---
+    const sorted = [...players].sort((a, b) => (b.todayGames || 0) - (a.todayGames || 0));
+    statsBody.innerHTML = sorted.map(p => {
         let time = p.checkInTime ? new Date(p.checkInTime).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'}) : '-';
-        let costShow = p.calculatedCost ? Math.ceil(p.calculatedCost) : 0;
-        // ✅ FIX: was inserting p.name into innerHTML unescaped
-        return `<tr><td style="text-align:left">${sanitizeHTML(p.name)}</td><td>${time}</td><td>${p.todayGames || 0}</td><td>${p.todayWins || 0}</td><td style="font-weight:bold; color:#4FCB8D;">${costShow} ฿</td></tr>`;
+        const games = p.todayGames || 0;
+        const wins = p.todayWins || 0;
+        const losses = Math.max(0, games - wins);
+        const rate = games > 0 ? Math.round((wins / games) * 100) : 0;
+        const form = getPlayerRecentForm(p);
+        const formHTML = form.length > 0
+            ? form.map(r => `<span class="form-pill ${r === 'W' ? 'form-win' : 'form-loss'}">${r}</span>`).join('')
+            : '<span style="color:#94a3b8;">-</span>';
+        return `<tr><td style="text-align:left">${sanitizeHTML(p.name)}</td><td>${time}</td><td>${games}</td><td style="color:var(--accent); font-weight:bold;">${wins}</td><td style="color:var(--rose); font-weight:bold;">${losses}</td><td>${rate}%</td><td>${formHTML}</td></tr>`;
     }).join('');
 
+    // --- Repeat pairings (teammates and opponents both counted) ---
     let repeats = [];
     for (const [key, count] of Object.entries(pairingHistory)) {
         if (count > 1) {
             const [id1, id2] = key.split('-');
             const p1 = players.find(p => p.id == id1); const p2 = players.find(p => p.id == id2);
-            if (p1 && p2) repeats.push({ name: `${sanitizeHTML(p1.name)} + ${sanitizeHTML(p2.name)}`, count: count });
+            if (p1 && p2) repeats.push({ name: `${sanitizeHTML(p1.name)} + ${sanitizeHTML(p2.name)}`, type: 'จับคู่ร่วมทีม', count: count });
+        }
+    }
+    for (const [key, count] of Object.entries(opponentHistory)) {
+        if (count > 1) {
+            const [id1, id2] = key.split('-');
+            const p1 = players.find(p => p.id == id1); const p2 = players.find(p => p.id == id2);
+            if (p1 && p2) repeats.push({ name: `${sanitizeHTML(p1.name)} + ${sanitizeHTML(p2.name)}`, type: 'เจอกันเป็นคู่แข่ง', count: count });
         }
     }
     repeats.sort((a, b) => b.count - a.count);
-    repeatBody.innerHTML = repeats.length === 0 ? '<tr><td colspan="2" style="color:green;">ไม่มีคู่ซ้ำ</td></tr>' : repeats.map(s => `<tr><td style="text-align:left;">${s.name}</td><td style="color:#FF9F5C; font-weight:bold;">${s.count}</td></tr>`).join('');
-    if (!skipUpdateCost) updateCost();
+    repeatBody.innerHTML = repeats.length === 0
+        ? '<tr><td colspan="3" style="color:var(--accent);">ไม่มีคู่ที่ลงเล่นด้วยกันเกิน 1 ครั้ง</td></tr>'
+        : repeats.map(s => `<tr><td style="text-align:left;">${s.name}</td><td>${s.type}</td><td style="color:var(--rose); font-weight:bold;">${s.count}</td></tr>`).join('');
 }
 
-let isCustomHours = false;
-function toggleCustomHours() {
-    isCustomHours = !isCustomHours;
-    document.getElementById('custom-hours-area').style.display = isCustomHours ? 'block' : 'none';
-    document.getElementById('std-hours-group').style.display = isCustomHours ? 'none' : 'flex';
-    updateCustomHoursInputs(); updateCost();
-}
-
-function updateCustomHoursInputs() {
-    const area = document.getElementById('custom-hours-area');
-    area.innerHTML = '';
-    for(let i=0; i<courtCount; i++) {
-        area.innerHTML += `<div style="display:flex; justify-content:space-between; margin-bottom:5px;"><label>คอร์ท ${i+1}:</label><input type="number" class="court-hr-input" value="2" style="width:50px;" onchange="updateCost()"> ชม.</div>`;
+// 💬 คัดลอกสรุปส่ง LINE ก๊วน — builds a paste-ready text summary from the
+// same KPI/award numbers shown on the Overview page.
+async function copyLineGroupReport() {
+    const awards = calculateDailyAwards();
+    const lines = [
+        `🏸 สรุปก๊วนแบดมินตัน - ห้อง ${currentRoomId}`,
+        `🏆 แมตช์ทั้งหมด: ${matchLogs.length} แมตช์`,
+        `👑 MVP วันนี้: ${awards.mvp ? awards.mvp.name : '-'}`,
+        `🐎 ม้าศึก: ${awards.ironman ? awards.ironman.name : '-'}`,
+        `🤝 คู่หูทองคำ: ${awards.bestDuo || '-'}`,
+    ];
+    const text = lines.join('\n');
+    try {
+        await navigator.clipboard.writeText(text);
+        alert('✅ คัดลอกสรุปแล้ว! เอาไปวางในไลน์กลุ่มก๊วนได้เลย');
+    } catch (err) {
+        alert('คัดลอกไม่ได้ครับ ลองอีกครั้ง หรือคัดลอกเองจากนี้:\n\n' + text);
     }
-}
-
-function updateCost() {
-    const pricePerHr = parseFloat(document.getElementById('calc-court-price').value) || 0;
-    let totalHours = 0;
-    if (isCustomHours) document.querySelectorAll('.court-hr-input').forEach(inp => totalHours += parseFloat(inp.value) || 0);
-    else totalHours = (parseFloat(document.getElementById('calc-hours').value) || 0) * (parseFloat(document.getElementById('calc-court-count').value) || 0);
-
-    const shuttleTotal = (parseFloat(document.getElementById('calc-shuttle-price').value) || 0) / 12 * (parseFloat(document.getElementById('calc-shuttle-used').value) || 0);
-    const grandTotal = (totalHours * pricePerHr) + shuttleTotal;
-    document.getElementById('total-cost-display').innerText = grandTotal.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
-
-    const now = new Date(); let totalMinutesAllPlayers = 0;
-    players.forEach(p => {
-        if (p.checkInTime) {
-            const diffMs = now - new Date(p.checkInTime);
-            p.minutesPresent = Math.max(1, Math.floor(diffMs / 60000));
-        } else p.minutesPresent = 0;
-        totalMinutesAllPlayers += p.minutesPresent;
-    });
-    players.forEach(p => {
-        if (totalMinutesAllPlayers > 0 && grandTotal > 0) p.calculatedCost = (p.minutesPresent / totalMinutesAllPlayers) * grandTotal;
-        else p.calculatedCost = 0;
-    });
-    renderOverview(true);
 }
 
 async function endSession() {
@@ -1496,7 +1572,7 @@ function restoreState(json) {
     if (isModalOpen() || !json) return;
     const state = JSON.parse(json);
     players = state.players;
-    if (state.courtCount) { courtCount = state.courtCount; document.getElementById('calc-court-count').value = courtCount; }
+    if (state.courtCount) { courtCount = state.courtCount; }
     courts = state.courts.map(c => { c.interval = null; return c; });
     renderCourts(); updateQueueDisplay(); updateNextMatchPanel();
 }
