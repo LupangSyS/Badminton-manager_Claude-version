@@ -522,35 +522,41 @@ function renderCourts() {
             </select>`;
 
         container.innerHTML += `
-            <div class="court" id="court-${index}">
-                <div class="court-lines"></div><div class="service-line-top"></div><div class="service-line-bottom"></div>
-
-            <div class="court-header" style="position: relative; z-index: 10; padding-bottom: 4px;">
-              <div style="display:flex; flex-direction: column; width:100%;">
-              <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <span onclick="editCourtName(${index})" style="cursor:pointer; white-space:nowrap; font-weight:bold; margin-right: 5px;">${displayName} ✏️</span>
+            <div class="court ${court.state === 'playing' ? 'is-playing' : ''}" id="court-${index}">
+              <div class="court-header">
+                <span onclick="editCourtName(${index})" style="cursor:pointer; white-space:nowrap;">${displayName} ✏️</span>
+                ${rankFilterHTML}
                 ${ruleSelectHTML}
               </div>
 
-              <div style="width: 100%;">
-             ${rankFilterHTML}
-              </div>
-
-              </div>
-             </div>
-
+              <div class="court-surface" style="position: relative;">
+                <div class="court-net"></div>
+                <div class="court-center-h"></div>
+                <div class="court-vs-badge">VS</div>
+                <div class="team team-pink">${renderPlayerOnCourt(court.players[0], index, 0)}${renderPlayerOnCourt(court.players[1], index, 1)}</div>
+                <div class="team team-blue">${renderPlayerOnCourt(court.players[2], index, 2)}${renderPlayerOnCourt(court.players[3], index, 3)}</div>
                 ${overlayHTML}
-                <div class="court-players">
-                    <div class="team team-pink">${renderPlayerOnCourt(court.players[0], index, 0)}${renderPlayerOnCourt(court.players[1], index, 1)}</div>
-                    <div class="team team-blue">${renderPlayerOnCourt(court.players[2], index, 2)}${renderPlayerOnCourt(court.players[3], index, 3)}</div>
-                </div>
-                <div class="court-controls">
-                    <div class="timer" id="timer-${index}">${formatTime(court.timer)}</div>${renderCourtButtons(court, index)}
-                </div>
+              </div>
+
+              <div class="court-footer">
+                <div class="timer" id="timer-${index}">${formatTime(court.timer)}</div>${renderCourtButtons(court, index)}
+              </div>
             </div>`;
     });
     updateQueueDisplay();
     updateDashboard();
+    updateHeaderStats();
+}
+
+function updateHeaderStats() {
+    const courtStatusEl = document.getElementById('header-court-status');
+    const queueCountEl = document.getElementById('header-queue-count');
+    const completedCountEl = document.getElementById('header-completed-count');
+    if (!courtStatusEl) return;
+    const activeCourts = courts.filter(c => c.state === 'playing').length;
+    courtStatusEl.innerText = `${activeCourts} กำลังแข่ง / ${courts.length} คอร์ททั้งหมด`;
+    queueCountEl.innerText = `${players.filter(p => p.status === 'waiting').length} คน`;
+    completedCountEl.innerText = `${matchLogs.length} แมตช์`;
 }
 
 function openCourt(idx) { courts[idx].isOpened = true; renderCourts(); }
@@ -562,7 +568,7 @@ function closeAndRest(idx) {
 }
 
 function renderPlayerOnCourt(player, courtIdx, slotIdx) {
-    if (!player) return `<div class="player-on-court" style="cursor:pointer; opacity:0.7; background:#f0f0f0; color:#888; border:2px dashed #ccc;" onclick="openManualAddModal(${courtIdx})" title="จิ้มเพื่อเลือกคนลง">+ ว่าง</div>`;
+    if (!player) return `<div class="court-slot empty" onclick="openManualAddModal(${courtIdx})" title="จิ้มเพื่อเลือกคนลง">+ ว่าง</div>`;
 
     const pl = players.find(x => x.id === player.id) || player;
 
@@ -571,9 +577,12 @@ function renderPlayerOnCourt(player, courtIdx, slotIdx) {
     const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(pl.name)}&background=random&color=fff`;
     const avatarImg = pl.avatarUrl ? pl.avatarUrl : defaultAvatar;
 
-    return `<div class="player-on-court" title="เปลี่ยนตัว" onclick="kickPlayer(${courtIdx}, ${slotIdx})">
-        <img src="${avatarImg}" class="mini-avatar">
-        <strong>${sanitizeHTML(pl.name)}</strong><span style="font-size:0.8em; margin-top:2px;">(${pl.todayGames || 0}P)</span>${badge}
+    return `<div class="player-on-court court-slot" title="เปลี่ยนตัว" onclick="kickPlayer(${courtIdx}, ${slotIdx})">
+        <div class="court-slot-avatar"><img src="${avatarImg}"></div>
+        <div class="court-slot-info">
+            <div class="court-slot-name">${sanitizeHTML(pl.name)}</div>
+            <div class="court-slot-meta"><span>${pl.todayGames || 0}P</span>${badge}</div>
+        </div>
     </div>`;
 }
 
@@ -602,19 +611,19 @@ function renderCourtButtons(court, idx) {
             if (bookingSize === 4) isBookingFour = true;
         }
     }
-    const disabledStyle = "background:#e0e0e0; color:#a0a0a0; cursor:not-allowed; border:1px solid #ccc;";
-    const activePairStyle = "background:#9b59b6; color:white;";
-    const activeFourStyle = "background:#8e44ad; color:white;";
+    const disabledStyle = "background:#e2e8f0; color:#94a3b8; cursor:not-allowed; box-shadow:none;";
+    const activePairStyle = "background:#a855f7; color:white;";
+    const activeFourStyle = "background:#7e22ce; color:white;";
 
     return `
-        <div style="display:flex; flex-direction:column; gap:4px;">
+        <div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">
             <div style="display:flex; gap:4px;">
-                <button class="warning" style="flex:1;" onclick="fillCourtSmart(${idx})">🎲 สุ่ม</button>
-                <button style="background:#3498db; color:white; flex:1;" onclick="fillCourtQueue(${idx})">⏩ ตามคิว</button>
+                <button class="secondary" style="flex:1; font-size:0.85em; padding:6px;" onclick="fillCourtSmart(${idx})">🎲 สุ่ม</button>
+                <button class="dark" style="flex:1; font-size:0.85em; padding:6px;" onclick="fillCourtQueue(${idx})">⏩ ตามคิว</button>
             </div>
             <div style="display:flex; gap:4px;">
-                <button style="flex:1; ${isBookingPair ? activePairStyle : disabledStyle}" ${isBookingPair ? `onclick="fillCourtSmart(${idx})"` : 'disabled'}>👥 จองคู่ ${isBookingPair ? '✅' : ''}</button>
-                <button style="flex:1; ${isBookingFour ? activeFourStyle : disabledStyle}" ${isBookingFour ? `onclick="fillCourtSmart(${idx})"` : 'disabled'}>⚔️ จอง 4 ${isBookingFour ? '✅' : ''}</button>
+                <button style="flex:1; font-size:0.78em; padding:5px; border-radius:10px; ${isBookingPair ? activePairStyle : disabledStyle}" ${isBookingPair ? `onclick="fillCourtSmart(${idx})"` : 'disabled'}>👥 จองคู่ ${isBookingPair ? '✅' : ''}</button>
+                <button style="flex:1; font-size:0.78em; padding:5px; border-radius:10px; ${isBookingFour ? activeFourStyle : disabledStyle}" ${isBookingFour ? `onclick="fillCourtSmart(${idx})"` : 'disabled'}>⚔️ จอง 4 ${isBookingFour ? '✅' : ''}</button>
             </div>
         </div>`;
 }
@@ -1016,8 +1025,14 @@ function updateDashboard() {
         const displayGames = scope === 'today' ? (p.todayGames || 0) : (p.gamesPlayed || 0);
         const displayWins = scope === 'today' ? (p.todayWins || 0) : (p.wins || 0);
         const rate = displayGames > 0 ? Math.round((displayWins / displayGames) * 100) : 0;
+        const lv = p.level || 'BG';
+        const tierBadge = `<span class="tier-badge tier-${lv}">${lv}</span>`;
 
-        return `<tr><td>${medal} ${rank}</td><td>${sanitizeHTML(p.name)}</td><td style="font-weight:bold; color:#2980b9;">${p.mmr || 0}</td><td>${displayGames}</td><td>${displayWins}</td><td>${rate}%</td></tr>`;
+        let statusHTML = `<span class="status-pill status-resting">พัก</span>`;
+        if (p.status === 'playing') statusHTML = `<span class="status-pill status-playing">🏸 แข่งอยู่</span>`;
+        else if (p.status === 'waiting') statusHTML = p.isResting ? `<span class="status-pill status-resting">💤 พัก</span>` : `<span class="status-pill status-queue">⏳ รอคิว</span>`;
+
+        return `<tr><td>${medal} ${rank}</td><td>${sanitizeHTML(p.name)}</td><td>${tierBadge}</td><td style="font-weight:bold; color:#2980b9;">${p.mmr || 0}</td><td>${displayGames}</td><td>${displayWins}</td><td>${rate}%</td><td>${statusHTML}</td></tr>`;
     }).join('');
 }
 
@@ -1157,19 +1172,21 @@ function updateQueueDisplay() {
         else if (estimatedWaitMins > 0) { badgeText = `< ${estimatedWaitMins}m`; }
         else { badgeText = 'เร็วๆ นี้'; }
 
-        const itemClass = p.isResting ? 'player-item resting' : `player-item ${p.bookingId ? 'booked' : ''} ${p.isFastPass ? 'fastpass' : ''}`;
+        const isSkipped = !p.isResting && (p.skipCount || 0) >= 1;
+        const itemClass = p.isResting ? 'player-item resting' : `player-item ${p.bookingId ? 'booked' : ''} ${p.isFastPass ? 'fastpass' : ''} ${isSkipped ? 'skipped' : ''}`;
         const opacityStyle = p.isResting ? 'opacity: 0.6; background: #ddd;' : '';
         const namePrefix = p.isResting ? '💤 ' : (p.isFastPass ? '🚀 ' : '');
         const lv = p.level || 'BG';
-        const lvColor = LEVEL_COLORS[lv] || '#bdbdbd';
-        const levelBadge = `<span onclick="toggleLevel(${p.id})" style="cursor:pointer; background:${lvColor}; color:white; padding:2px 6px; border-radius:4px; font-size:0.8em; margin-right:5px;">${lv}</span>`;
+        const tierBadge = `<span class="tier-badge tier-${lv}" onclick="toggleLevel(${p.id})" style="cursor:pointer;" title="คลิกเปลี่ยนระดับ">${lv}</span>`;
 
         const genderIcon = (p.gender === 'F') ? '👩' : '👨';
         const genderBadge = `<span onclick="toggleGender(${p.id})" style="cursor:pointer; font-size:1.1em; margin-right:5px; background:rgba(255,255,255,0.5); border-radius:50%; padding:0 2px;" title="คลิกสลับเพศ">${genderIcon}</span>`;
 
         const waitBadge = !p.isResting ? `<span class="wait-badge ${badgeClass}">${badgeText}</span>` : '<small style="color:gray;">(พัก)</small>';
-        // 🔜 FIX: new — shows who's guaranteed the next seat (anti-starvation pity rule)
-        const nextPickBadge = (!p.isResting && (p.skipCount || 0) >= 1) ? `<span style="background:#f39c12;color:white;font-size:0.7em;padding:1px 6px;border-radius:8px;margin-left:4px;">🔜 คิวต่อไป</span>` : '';
+        // Anti-starvation pity rule: this player is guaranteed the next seat.
+        const skipAlertBadge = isSkipped ? `<span class="skip-alert-badge">🔥 ต้องได้ลงแล้ว!</span>` : '';
+        const mmrLabel = `<span style="font-size:0.72em; color:#94a3b8; font-family:monospace;">MMR ${p.mmr || 100}</span>`;
+        const indexBadge = `<span class="queue-index-badge">${index + 1}</span>`;
 
         const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random&color=fff`;
         const avatarImg = p.avatarUrl ? p.avatarUrl : defaultAvatar;
@@ -1180,10 +1197,11 @@ function updateQueueDisplay() {
         // break this onclick handler. showBigImage() decodes it back for display.
         const avatarHtml = `<img src="${avatarImg}" class="mini-avatar" style="margin-right: 5px; cursor: zoom-in;" onclick="event.stopPropagation(); showBigImage('${avatarImg}', '${encodeURIComponent(p.name)}')">`;
 
-        return `<li class="${itemClass}" style="${opacityStyle}"><div class="player-info">${!p.isResting ? levelBadge + genderBadge : ''}${avatarHtml}<strong>${namePrefix}${safeName}</strong>${p.bookingId ? `<small onclick="cancelBooking('${p.bookingId}')" style="cursor:pointer;">🔒</small>` : ''}${waitBadge}${nextPickBadge}</div><button class="mini-btn ${p.isResting ? 'success' : 'secondary'}" style="margin-right:5px;" onclick="toggleRest(${p.id})">${p.isResting ? 'ตื่น' : '💤'}</button><button class="mini-btn danger" onclick="removePlayer(${p.id})">×</button></li>`;
+        return `<li class="${itemClass}" style="${opacityStyle}"><div class="player-info">${indexBadge}${!p.isResting ? tierBadge + genderBadge : ''}${avatarHtml}<strong>${namePrefix}${safeName}</strong>${p.bookingId ? `<small onclick="cancelBooking('${p.bookingId}')" style="cursor:pointer;">🔒</small>` : ''}${skipAlertBadge}${!p.isResting ? mmrLabel : ''}${waitBadge}</div><button class="mini-btn ${p.isResting ? 'success' : 'secondary'}" style="margin-right:5px;" onclick="toggleRest(${p.id})">${p.isResting ? 'ตื่น' : '💤'}</button><button class="mini-btn danger" onclick="removePlayer(${p.id})">×</button></li>`;
     }).join('');
 
     updateNextMatchPanel();
+    updateHeaderStats();
 }
 
 function formatTime(s) { return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`; }
@@ -1250,14 +1268,16 @@ function updateNextMatchPanel() {
             break;
         }
         candidates.forEach(p => excludeIds.add(p.id));
-        html += `<div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); min-width: 200px;"><div style="font-size:0.8em; color:#ddd; margin-bottom:5px;">📢 Match ${i + 1}</div>`;
-        const createCard = (p, color) => `<div style="background:white; color:#333; padding:4px 8px; margin:2px 0; border-radius:4px; border-left:4px solid ${color}; font-size:0.9em; display:flex; justify-content:space-between;"><span>${p.isFastPass?'🚀':''} ${sanitizeHTML(p.name)}</span>${p.bookingId ? '🔒' : ''}</div>`;
+        const nameTag = (p) => `${p.isFastPass ? '🚀' : ''}${p.bookingId ? '🔒' : ''}${sanitizeHTML(p.name)}`;
+        html += `<div style="background: rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2);">
+            <div style="font-size:0.72em; color:#cbd5e1; margin-bottom:3px;">📢 Match ${i + 1}</div>
+            <div class="next-match-chip">`;
         if (needed === 4) {
-            html += `<div style="display:flex; gap:5px;"><div style="flex:1;">${createCard(candidates[0], '#e74c3c')}${createCard(candidates[1], '#e74c3c')}</div><div style="display:flex; align-items:center;">VS</div><div style="flex:1;">${createCard(candidates[2], '#3498db')}${createCard(candidates[3], '#3498db')}</div></div>`;
+            html += `<span class="side-a">${nameTag(candidates[0])} & ${nameTag(candidates[1])}</span><span class="vs-tag">VS</span><span class="side-b">${nameTag(candidates[2])} & ${nameTag(candidates[3])}</span>`;
         } else {
-            html += `<div style="display:flex; flex-direction:column; gap:2px;">${createCard(candidates[0], '#f1c40f')}${createCard(candidates[1], '#f1c40f')}</div>`;
+            html += `<span class="side-a">${nameTag(candidates[0])} & ${nameTag(candidates[1])}</span>`;
         }
-        html += `</div>`;
+        html += `</div></div>`;
     }
     container.innerHTML = html;
 }
