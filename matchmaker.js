@@ -176,15 +176,10 @@ function findBestPartnerInfinite(captain, fullPool, usedIds, rankCheckList = [],
     let best = null; let minScore = Infinity;
     const capScore = RANK_SCORES[captain.level || 'BG'] || 1;
     const capMMR = captain.mmr || 0;
-    const capGender = captain.gender || 'M';
-   
+
     for (let i = 0; i < fullPool.length; i++) {
         const c = fullPool[i];
         if (c.id === captain.id || usedIds.has(c.id) || c.bookingId) continue;
-        const cGender = c.gender || 'M';
-        // ✅ FIX: this used to block same-gender pairing even in isForce mode, which
-        // could make a starved player structurally unmatchable. isForce now bypasses it.
-        if (!isForce && capGender === 'F' && cGender === 'F') continue;
         let finalScore = 0;
 
         if (isMMRMode && !isForce) {
