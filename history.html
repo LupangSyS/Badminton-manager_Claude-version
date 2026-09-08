@@ -303,32 +303,57 @@
 
             const total = wins + losses;
             const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
+            const rateColor = (r) => r >= 60 ? '#2ecc71' : (r <= 40 ? '#e74c3c' : '#f39c12');
 
-            const rowsHTML = (obj) => Object.keys(obj).length === 0
-                ? `<div style="color:#94a3b8; font-size:0.85em; padding:6px 0;">— ไม่มีข้อมูล —</div>`
-                : Object.entries(obj).sort((a, b) => b[1].games - a[1].games).map(([name, s]) => `
-                    <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f0f4f8; font-size:0.9em;">
-                        <span>${sanitizeHTML(name)}</span>
-                        <span>${s.wins}W-${s.games - s.wins}L (${s.games} เกม)</span>
-                    </div>
-                `).join('');
+            // แต่ละแถวมีรูป + แท่งกราฟสัดส่วนชนะ/แพ้ ให้กวาดตาดูรู้เรื่องเร็ว
+            // แทนที่จะเป็นตัวหนังสือ "1W-2L" ล้วนๆ ที่อ่านทีละบรรทัดถึงจะเก็ตความหมาย
+            const rowsHTML = (obj) => {
+                const entries = Object.entries(obj).sort((a, b) => b[1].games - a[1].games);
+                if (entries.length === 0) return `<div style="color:#94a3b8; font-size:0.85em; padding:8px 0;">— ไม่มีข้อมูล —</div>`;
+                return entries.map(([name, s]) => {
+                    const loss = s.games - s.wins;
+                    const rate = Math.round((s.wins / s.games) * 100);
+                    const color = rateColor(rate);
+                    return `
+                    <div style="display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid #f0f4f8;">
+                        <img src="${getAvatar(name)}" class="mini-avatar" style="margin:0; width:30px; height:30px; flex-shrink:0;">
+                        <div style="flex:1; min-width:0;">
+                            <div style="display:flex; justify-content:space-between; gap:8px; font-size:0.88em; margin-bottom:3px;">
+                                <strong style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${sanitizeHTML(name)}</strong>
+                                <span style="color:#7f8c8d; font-size:0.85em; flex-shrink:0;">${s.games} เกม</span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <div style="flex:1; height:6px; background:#f0f4f8; border-radius:4px; overflow:hidden;" title="${s.wins}W-${loss}L">
+                                    <div style="width:${rate}%; height:100%; background:${color};"></div>
+                                </div>
+                                <span style="font-size:0.75em; font-weight:bold; color:${color}; flex-shrink:0; width:52px; text-align:right;">${s.wins}W-${loss}L</span>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+            };
 
             return `
             <div style="background:#faf5ff; border:1px solid #e9d5ff; border-radius:12px; padding:16px; margin-bottom:16px;">
-                <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                    <img src="${getAvatar(playerName)}" style="width:48px; height:48px; border-radius:50%; border:2px solid #8e44ad;">
-                    <div>
-                        <strong style="font-size:1.1em;">${sanitizeHTML(playerName)}</strong><br>
-                        <span style="font-size:0.85em; color:#7f8c8d;">เล่นวันนี้ ${total} เกม • ชนะ ${wins} • แพ้ ${losses} • Win Rate ${winRate}%</span>
+                <div style="display:flex; align-items:center; gap:14px; margin-bottom:16px; flex-wrap:wrap;">
+                    <img src="${getAvatar(playerName)}" style="width:52px; height:52px; border-radius:50%; border:3px solid #8e44ad; flex-shrink:0;">
+                    <div style="flex:1; min-width:160px;">
+                        <strong style="font-size:1.15em;">${sanitizeHTML(playerName)}</strong>
+                        <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+                            <span style="background:#f0f4f8; color:#2c3e50; font-size:0.78em; font-weight:bold; padding:3px 10px; border-radius:999px;">🏸 ${total} เกม</span>
+                            <span style="background:rgba(46,204,113,0.15); color:#27ae60; font-size:0.78em; font-weight:bold; padding:3px 10px; border-radius:999px;">✅ ชนะ ${wins}</span>
+                            <span style="background:rgba(231,76,60,0.12); color:#e74c3c; font-size:0.78em; font-weight:bold; padding:3px 10px; border-radius:999px;">❌ แพ้ ${losses}</span>
+                            <span style="background:${rateColor(winRate)}; color:white; font-size:0.78em; font-weight:bold; padding:3px 10px; border-radius:999px;">${winRate}% Win Rate</span>
+                        </div>
                     </div>
                 </div>
-                <div style="display:flex; gap:20px; flex-wrap:wrap;">
-                    <div style="flex:1; min-width:180px;">
-                        <div style="font-weight:bold; font-size:0.85em; color:#8e44ad; margin-bottom:4px;">🤝 คู่หูวันนี้</div>
+                <div style="display:flex; gap:24px; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:200px;">
+                        <div style="font-weight:bold; font-size:0.85em; color:#8e44ad; margin-bottom:6px;">🤝 คู่หูวันนี้ (${Object.keys(partners).length})</div>
                         ${rowsHTML(partners)}
                     </div>
-                    <div style="flex:1; min-width:180px;">
-                        <div style="font-weight:bold; font-size:0.85em; color:#e74c3c; margin-bottom:4px;">⚔️ คู่แข่งที่เจอ</div>
+                    <div style="flex:1; min-width:200px;">
+                        <div style="font-weight:bold; font-size:0.85em; color:#e74c3c; margin-bottom:6px;">⚔️ คู่แข่งที่เจอ (${Object.keys(opponents).length})</div>
                         ${rowsHTML(opponents)}
                     </div>
                 </div>
