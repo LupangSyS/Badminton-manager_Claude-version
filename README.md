@@ -1,1 +1,1 @@
-# Badminto-manager_Claude-version
+# Badminton-manager_Claude-version
