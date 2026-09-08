@@ -98,6 +98,10 @@
             </div>
         </div>
 
+        <div class="panel hidden" id="loaded-bill-banner" style="background: rgba(79,203,141,0.12); border-color: rgba(79,203,141,0.4); padding: 14px 18px; font-size: 0.88em; color: #2FAE72; font-weight: 700;">
+            📂 โหลดข้อมูลที่เคยบันทึกไว้ของห้องนี้กลับมาให้แล้ว (แก้ต่อได้เลย)
+        </div>
+
         <div class="panel hidden" id="panel-settings">
             <h3><span class="n">2</span>ตั้งค่าคอร์ทและเวลา</h3>
             <div class="field-row">
@@ -256,12 +260,13 @@
         // ==========================================
         // เลือกห้อง -> เตรียมรายชื่อผู้เล่น + ค่าเริ่มต้น
         // ==========================================
-        function onRoomSelected() {
+        async function onRoomSelected() {
             const roomId = document.getElementById('room-select').value;
             document.getElementById('panel-settings').classList.add('hidden');
             document.getElementById('panel-players').classList.add('hidden');
             document.getElementById('panel-results').classList.add('hidden');
             document.getElementById('calc-btn-row').classList.add('hidden');
+            document.getElementById('loaded-bill-banner').classList.add('hidden');
             if (!roomId) return;
 
             const data = roomsCache[roomId];
@@ -297,6 +302,11 @@
             const mm = String(closingGuess.getMinutes()).padStart(2, '0');
             document.getElementById('closing-time').value = `${hh}:${mm}`;
 
+            // If this room's bill was already saved before, load those numbers back in
+            // instead of starting over from scratch — this is what was missing before:
+            // saving worked, but nothing ever read the saved bill back on reselect/refresh.
+            await loadSavedBillIfExists(roomId);
+
             renderPlayerRows();
             document.getElementById('panel-settings').classList.remove('hidden');
             document.getElementById('panel-players').classList.remove('hidden');
@@ -304,6 +314,51 @@
             document.getElementById('panel-results').classList.add('hidden');
 
             recalcNow();
+        }
+
+        async function loadSavedBillIfExists(roomId) {
+            try {
+                const billDoc = await db.collection('bills').doc(roomId).get();
+                if (!billDoc.exists) return;
+                const bill = billDoc.data();
+
+                if (bill.closingTime) {
+                    const c = new Date(bill.closingTime);
+                    document.getElementById('closing-time').value = `${String(c.getHours()).padStart(2, '0')}:${String(c.getMinutes()).padStart(2, '0')}`;
+                }
+                if (typeof bill.pricePerCourtHour === 'number') document.getElementById('price-per-court-hour').value = bill.pricePerCourtHour;
+                if (typeof bill.courtCount === 'number') document.getElementById('court-count').value = bill.courtCount;
+                if (typeof bill.shuttlePrice === 'number') document.getElementById('shuttle-price').value = bill.shuttlePrice;
+                if (typeof bill.shuttleUsed === 'number') document.getElementById('shuttle-qty').value = bill.shuttleUsed;
+
+                document.getElementById('per-court-toggle').checked = !!bill.perCourtSplit;
+                if (bill.perCourtSplit && Array.isArray(bill.courtHours)) {
+                    document.getElementById('per-court-rows').classList.remove('hidden');
+                    buildPerCourtRows();
+                    bill.courtHours.forEach((h, i) => {
+                        if (!courtRows[i]) return;
+                        courtRows[i].hours = h;
+                        courtRows[i].touched = true;
+                        const el = document.getElementById(`court-hour-${i}`);
+                        if (el) el.value = h;
+                    });
+                }
+
+                if (Array.isArray(bill.playersBill)) {
+                    const savedHours = {};
+                    bill.playersBill.forEach(pb => { savedHours[pb.name] = pb.hours; });
+                    sessionPlayers.forEach(p => {
+                        if (Object.prototype.hasOwnProperty.call(savedHours, p.name)) {
+                            p.hours = savedHours[p.name];
+                            p.touched = true;
+                        }
+                    });
+                }
+
+                document.getElementById('loaded-bill-banner').classList.remove('hidden');
+            } catch (err) {
+                console.error('โหลดบิลที่เคยบันทึกไว้ไม่ได้:', err);
+            }
         }
 
         function onCourtCountChange() {
