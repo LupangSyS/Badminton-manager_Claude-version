@@ -307,9 +307,21 @@
     <div id="dbModal" class="db-modal">
         <div class="db-modal-content">
             <h3 style="margin-top:0; color:#2c3e50;">📖 เลือกจาก Database</h3>
-            <input type="text" id="dbSearch" placeholder="🔍 ค้นหาชื่อ..." onkeyup="filterDbPlayers()" style="padding:10px; width:100%; box-sizing:border-box; border-radius:8px; border:1px solid #ccc;">
+            <div style="display:flex; gap:8px; margin-bottom:10px;">
+                <input type="text" id="dbSearch" placeholder="🔍 ค้นหาชื่อ..." onkeyup="filterDbPlayers()" style="flex:1; padding:10px; box-sizing:border-box; border-radius:8px; border:1px solid #ccc;">
+                <select id="dbSortSelect" onchange="filterDbPlayers()" style="padding:10px; border-radius:8px; border:1px solid #ccc; background:white;">
+                    <option value="mmr">⚔️ MMR</option>
+                    <option value="name">🔤 A-Z / ก-ฮ</option>
+                </select>
+            </div>
             <div id="dbPlayerList" class="db-player-list"></div>
-            <button class="secondary" style="margin-top:15px;" onclick="closeDbSelector()">↩ ย้อนกลับ / ปิด</button>
+            <div class="db-modal-actions">
+                <span id="dbSelectedCount" style="font-size:0.85em; color:#64748b;">เลือกไว้ 0 คน</span>
+                <div style="display:flex; gap:8px;">
+                    <button class="secondary" onclick="closeDbSelector()">↩ ปิด</button>
+                    <button class="success" id="dbAddSelectedBtn" onclick="addSelectedFromDb()" disabled>✅ เพิ่มที่เลือก</button>
+                </div>
+            </div>
         </div>
     </div>
 

@@ -1710,10 +1710,12 @@ window.onload = function() {
 // 📖 ระบบจิ้มชื่อจาก Database
 // ==========================================
 let cloudPlayersCache = [];
+let dbSelectedNames = new Set();
 
 function openDbSelector() {
     document.getElementById('dbModal').style.display = 'flex';
     document.getElementById('dbSearch').value = '';
+    dbSelectedNames = new Set();
     const listDiv = document.getElementById('dbPlayerList');
     listDiv.innerHTML = '<div style="padding:20px; text-align:center;">กำลังโหลดข้อมูล... ⏳</div>';
 
@@ -1721,7 +1723,6 @@ function openDbSelector() {
     db.collection('players_profile').get().then(snapshot => {
         cloudPlayersCache = [];
         snapshot.forEach(doc => cloudPlayersCache.push(doc.data()));
-        cloudPlayersCache.sort((a, b) => (b.mmr || 0) - (a.mmr || 0));
         renderDbPlayers(cloudPlayersCache);
     }).catch(err => {
         listDiv.innerHTML = '<div style="color:red; text-align:center;">โหลดพลาดว่ะ! เช็คเน็ตดิ๊</div>';
@@ -1732,12 +1733,22 @@ function closeDbSelector() {
     document.getElementById('dbModal').style.display = 'none';
 }
 
+function sortDbPlayers(list) {
+    const sortBy = document.getElementById('dbSortSelect') ? document.getElementById('dbSortSelect').value : 'mmr';
+    const sorted = [...list];
+    if (sortBy === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name, 'th'));
+    else sorted.sort((a, b) => (b.mmr || 0) - (a.mmr || 0));
+    return sorted;
+}
+
 function renderDbPlayers(playerList) {
     const listDiv = document.getElementById('dbPlayerList');
     listDiv.innerHTML = '';
+    const sorted = sortDbPlayers(playerList);
 
-    playerList.forEach(p => {
+    sorted.forEach(p => {
         const isAlreadyInQueue = players.some(activeP => activeP.name === p.name);
+        const isSelected = dbSelectedNames.has(p.name);
 
         const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random&color=fff`;
         const avatar = p.avatarUrl || defaultAvatar;
@@ -1745,21 +1756,31 @@ function renderDbPlayers(playerList) {
         const encName = encodeURIComponent(p.name); // safe for the onclick argument
 
         listDiv.innerHTML += `
-            <div class="db-player-item" ${isAlreadyInQueue ? 'style="opacity:0.5; background:#eee;"' : ''}>
-                <div style="display:flex; align-items:center;">
-                    <img src="${avatar}" class="mini-avatar" style="width:35px; height:35px; margin-right:10px;">
-                    <div>
-                        <strong style="font-size:1.1em;">${safeName}</strong><br>
+            <div class="db-player-item ${isSelected ? 'db-item-selected' : ''}" ${isAlreadyInQueue ? '' : `onclick="toggleDbSelect('${encName}')"`} style="${isAlreadyInQueue ? 'opacity:0.5; background:#eee; cursor:default;' : ''}">
+                <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                    ${isAlreadyInQueue ? '' : `<input type="checkbox" class="db-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleDbSelect('${encName}')">`}
+                    <img src="${avatar}" class="mini-avatar" style="width:35px; height:35px; margin-right:2px; flex-shrink:0;">
+                    <div style="min-width:0;">
+                        <strong style="font-size:1.05em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;">${safeName}</strong>
                         <span style="font-size:0.8em; color:#7f8c8d;">MMR: ${p.mmr || 100}</span>
                     </div>
                 </div>
-                ${isAlreadyInQueue
-                    ? `<span style="font-size:0.8em; color:#FF6F91; font-weight:bold;">มีในคิวแล้ว</span>`
-                    : `<button class="db-add-btn" onclick="addSinglePlayerFromDb('${encName}')">+ แอดลงคอร์ท</button>`
-                }
+                ${isAlreadyInQueue ? `<span style="font-size:0.75em; color:#FF6F91; font-weight:bold; flex-shrink:0;">มีในคิวแล้ว</span>` : ''}
             </div>
         `;
     });
+}
+
+function toggleDbSelect(encodedName) {
+    const name = decodeURIComponent(encodedName);
+    if (dbSelectedNames.has(name)) dbSelectedNames.delete(name);
+    else dbSelectedNames.add(name);
+
+    const countEl = document.getElementById('dbSelectedCount');
+    const addBtn = document.getElementById('dbAddSelectedBtn');
+    if (countEl) countEl.innerText = `เลือกไว้ ${dbSelectedNames.size} คน`;
+    if (addBtn) addBtn.disabled = dbSelectedNames.size === 0;
+    renderDbPlayers(cloudPlayersCache.filter(p => p.name.toLowerCase().includes(document.getElementById('dbSearch').value.toLowerCase())));
 }
 
 function filterDbPlayers() {
@@ -1768,14 +1789,15 @@ function filterDbPlayers() {
     renderDbPlayers(filtered);
 }
 
-async function addSinglePlayerFromDb(encodedName) {
-    const name = decodeURIComponent(encodedName);
-    if (players.some(p => p.name === name)) {
-        alert("มึงแอดคนนี้ไปแล้ว จะแอดซ้ำทำไม!"); return;
-    }
+// Adds everyone ticked in one go — reuses addPlayers()'s existing per-name
+// Firestore-profile lookup logic by feeding it all the selected names at once.
+async function addSelectedFromDb() {
+    if (dbSelectedNames.size === 0) return;
+    const names = [...dbSelectedNames].filter(name => !players.some(p => p.name === name));
+    if (names.length === 0) { dbSelectedNames = new Set(); closeDbSelector(); return; }
 
     const tempBox = document.createElement('textarea');
-    tempBox.value = name;
+    tempBox.value = names.join('\n');
 
     const realBox = document.getElementById('new-players');
     realBox.id = 'temp-hidden-box';
@@ -1787,7 +1809,10 @@ async function addSinglePlayerFromDb(encodedName) {
     tempBox.remove();
     realBox.id = 'new-players';
 
-    renderDbPlayers(cloudPlayersCache);
+    dbSelectedNames = new Set();
+    document.getElementById('dbSelectedCount').innerText = 'เลือกไว้ 0 คน';
+    document.getElementById('dbAddSelectedBtn').disabled = true;
+    closeDbSelector();
 }
 // ==========================================
 // 🖼️ ระบบซูมดูรูปโปรไฟล์ใหญ่
