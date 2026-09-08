@@ -63,7 +63,7 @@ function createRoom() {
     if (roomDisp) roomDisp.innerText = currentRoomId;
     if (roleDisp) {
         roleDisp.innerText = "👑 HOST (คนคุม)";
-        roleDisp.style.background = "#E29AA0";
+        roleDisp.style.background = "#FF6F91";
     }
 
     init(); // host only: starts local auto-fill / timer intervals
@@ -116,7 +116,7 @@ function joinRoomAdmin() {
 
     document.getElementById('display-room-id').innerText = currentRoomId;
     document.getElementById('display-role').innerText = "🛠️ ADMIN (คนคุมคิว)";
-    document.getElementById('display-role').style.background = "#D99A5B";
+    document.getElementById('display-role').style.background = "#FF9F5C";
 
     const controlPanel = document.querySelector('.control-sidebar-container');
     if (controlPanel) controlPanel.style.display = 'block';
@@ -530,7 +530,7 @@ function renderCourts() {
         const rankFilterHTML = `
             <div class="rank-filter-container" onclick="event.stopPropagation()">
                 <input type="checkbox" class="rank-checkbox" ${court.isRankFilterOn ? 'checked' : ''} onchange="toggleRankFilter(${index})" title="บังคับ Rank">
-                <span style="font-weight:bold; color:${court.isRankFilterOn ? '#C77E86' : '#aaa'};">Rank</span>
+                <span style="font-weight:bold; color:${court.isRankFilterOn ? '#FF6F91' : '#aaa'};">Rank</span>
                 <select class="rank-select" onchange="setCourtRankMin(${index}, this.value)" ${!court.isRankFilterOn?'disabled':''}>${RANK_LEVELS.map(r => `<option value="${r}" ${court.minRank===r?'selected':''}>${r}</option>`).join('')}</select>
                 to
                 <select class="rank-select" onchange="setCourtRankMax(${index}, this.value)" ${!court.isRankFilterOn?'disabled':''}>${RANK_LEVELS.map(r => `<option value="${r}" ${court.maxRank===r?'selected':''}>${r}</option>`).join('')}</select>
@@ -600,7 +600,7 @@ function renderPlayerOnCourt(player, courtIdx, slotIdx) {
     const pl = players.find(x => x.id === player.id) || player;
 
     const rule = courts[courtIdx].rule || 'normal';
-    let badge = (rule === 'winner_stay') ? `<span class="quota-badge" style="background:${pl.sessionGames >= 1 ? '#E0A46B' : '#6FA98A'}">G: ${pl.sessionGames + 1}/2</span>` : '';
+    let badge = (rule === 'winner_stay') ? `<span class="quota-badge" style="background:${pl.sessionGames >= 1 ? '#FF9F5C' : '#4FCB8D'}">G: ${pl.sessionGames + 1}/2</span>` : '';
     const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(pl.name)}&background=random&color=fff`;
     const avatarImg = pl.avatarUrl ? pl.avatarUrl : defaultAvatar;
 
@@ -761,7 +761,7 @@ function showBookingConfirm(courtIdx, team, needed, rankFilter, useCooldown, wai
             <p style="font-size:0.9em;color:#555;"><strong>${groupNames}</strong> จองคิวไว้ด้วยกันและสุ่มมาโดนพอดี ต้องการให้ลงคอร์ทนี้เลยไหม หรือสุ่มใหม่โดยเว้นคู่นี้ไว้ก่อน (พวกเขายังอยู่ในคิวรอตามเดิม)?</p>
             <div style="display:flex;gap:8px;margin-top:14px;">
                 <button onclick="resolveBookingConfirm('reroll')" style="flex:1;padding:10px;border-radius:10px;border:none;background:#e2e8f0;color:#334155;cursor:pointer;">🔁 สุ่มใหม่</button>
-                <button onclick="resolveBookingConfirm('assign')" style="flex:1;padding:10px;border-radius:10px;border:none;background:#6FA98A;color:white;cursor:pointer;">✅ ลงเลย</button>
+                <button onclick="resolveBookingConfirm('assign')" style="flex:1;padding:10px;border-radius:10px;border:none;background:#4FCB8D;color:white;cursor:pointer;">✅ ลงเลย</button>
             </div>
         </div>`;
     overlay.style.display = 'flex';
@@ -843,18 +843,18 @@ function showCooldownConfirm(courtIdx, team, violations) {
             <p style="font-size:0.85em;color:#555;">${msgLines.join('<br>')}</p>
             <div style="display:flex;gap:8px;margin:14px 0;">
                 <div style="flex:1;background:#ffebee;border-radius:8px;padding:8px;text-align:center;">
-                    <div style="font-weight:bold;color:#C77E86;">${sanitizeHTML(t1[0].name)}</div>
-                    <div style="font-weight:bold;color:#C77E86;">${sanitizeHTML(t1[1].name)}</div>
+                    <div style="font-weight:bold;color:#FF6F91;">${sanitizeHTML(t1[0].name)}</div>
+                    <div style="font-weight:bold;color:#FF6F91;">${sanitizeHTML(t1[1].name)}</div>
                 </div>
                 <div style="align-self:center;font-weight:bold;">VS</div>
                 <div style="flex:1;background:#e3f2fd;border-radius:8px;padding:8px;text-align:center;">
-                    <div style="font-weight:bold;color:#6E93BC;">${sanitizeHTML(t2[0].name)}</div>
-                    <div style="font-weight:bold;color:#6E93BC;">${sanitizeHTML(t2[1].name)}</div>
+                    <div style="font-weight:bold;color:#4FB3F0;">${sanitizeHTML(t2[0].name)}</div>
+                    <div style="font-weight:bold;color:#4FB3F0;">${sanitizeHTML(t2[1].name)}</div>
                 </div>
             </div>
             <div style="display:flex;gap:8px;">
                 <button onclick="resolveCooldownConfirm(false)" style="flex:1;padding:10px;border-radius:8px;border:none;background:#e0e0e0;cursor:pointer;">❌ No</button>
-                <button onclick="resolveCooldownConfirm(true)" style="flex:1;padding:10px;border-radius:8px;border:none;background:#6FA98A;color:white;cursor:pointer;">✅ Yes</button>
+                <button onclick="resolveCooldownConfirm(true)" style="flex:1;padding:10px;border-radius:8px;border:none;background:#4FCB8D;color:white;cursor:pointer;">✅ Yes</button>
             </div>
         </div>`;
     overlay.style.display = 'flex';
@@ -1191,7 +1191,7 @@ function updateDashboard() {
         if (p.status === 'playing') statusHTML = `<span class="status-pill status-playing">🏸 แข่งอยู่</span>`;
         else if (p.status === 'waiting') statusHTML = p.isResting ? `<span class="status-pill status-resting">💤 พัก</span>` : `<span class="status-pill status-queue">⏳ รอคิว</span>`;
 
-        return `<tr><td>${medal} ${rank}</td><td>${sanitizeHTML(p.name)}</td><td>${tierBadge}</td><td style="font-weight:bold; color:#6699BB;">${p.mmr || 0}</td><td>${displayGames}</td><td>${displayWins}</td><td>${rate}%</td><td>${statusHTML}</td></tr>`;
+        return `<tr><td>${medal} ${rank}</td><td>${sanitizeHTML(p.name)}</td><td>${tierBadge}</td><td style="font-weight:bold; color:#4FB3F0;">${p.mmr || 0}</td><td>${displayGames}</td><td>${displayWins}</td><td>${rate}%</td><td>${statusHTML}</td></tr>`;
     }).join('');
 }
 
@@ -1202,7 +1202,7 @@ function renderOverview(skipUpdateCost = false) {
         let time = p.checkInTime ? new Date(p.checkInTime).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'}) : '-';
         let costShow = p.calculatedCost ? Math.ceil(p.calculatedCost) : 0;
         // ✅ FIX: was inserting p.name into innerHTML unescaped
-        return `<tr><td style="text-align:left">${sanitizeHTML(p.name)}</td><td>${time}</td><td>${p.todayGames || 0}</td><td>${p.todayWins || 0}</td><td style="font-weight:bold; color:#6FA98A;">${costShow} ฿</td></tr>`;
+        return `<tr><td style="text-align:left">${sanitizeHTML(p.name)}</td><td>${time}</td><td>${p.todayGames || 0}</td><td>${p.todayWins || 0}</td><td style="font-weight:bold; color:#4FCB8D;">${costShow} ฿</td></tr>`;
     }).join('');
 
     let repeats = [];
@@ -1214,7 +1214,7 @@ function renderOverview(skipUpdateCost = false) {
         }
     }
     repeats.sort((a, b) => b.count - a.count);
-    repeatBody.innerHTML = repeats.length === 0 ? '<tr><td colspan="2" style="color:green;">ไม่มีคู่ซ้ำ</td></tr>' : repeats.map(s => `<tr><td style="text-align:left;">${s.name}</td><td style="color:#C98A55; font-weight:bold;">${s.count}</td></tr>`).join('');
+    repeatBody.innerHTML = repeats.length === 0 ? '<tr><td colspan="2" style="color:green;">ไม่มีคู่ซ้ำ</td></tr>' : repeats.map(s => `<tr><td style="text-align:left;">${s.name}</td><td style="color:#FF9F5C; font-weight:bold;">${s.count}</td></tr>`).join('');
     if (!skipUpdateCost) updateCost();
 }
 
@@ -1293,7 +1293,7 @@ const openBookingModal = (type) => {
     if (type === 'pair') {
         html += `<h4>👥 จองคู่</h4><label>คนแรก:</label><select id="b-p1" style="width:100%; margin-bottom:10px;">${options}</select><label>คนที่สอง:</label><select id="b-p2" style="width:100%; margin-bottom:10px;">${options}</select>`;
     } else {
-        html += `<h4>⚔️ จอง 4</h4><strong style="color:#C77E86;">T1:</strong><select id="b-p1" style="width:100%;">${options}</select><select id="b-p2" style="width:100%;">${options}</select><br><strong style="color:#5B7FA8;">T2:</strong><select id="b-p3" style="width:100%;">${options}</select><select id="b-p4" style="width:100%;">${options}</select>`;
+        html += `<h4>⚔️ จอง 4</h4><strong style="color:#FF6F91;">T1:</strong><select id="b-p1" style="width:100%;">${options}</select><select id="b-p2" style="width:100%;">${options}</select><br><strong style="color:#1D8FD9;">T2:</strong><select id="b-p3" style="width:100%;">${options}</select><select id="b-p4" style="width:100%;">${options}</select>`;
     }
     document.getElementById('booking-inputs').innerHTML = html;
     const actions = document.querySelector('#booking-modal .modal-actions');
@@ -1549,7 +1549,7 @@ window.onload = function() {
 
         if (isHost) {
             document.getElementById('display-role').innerText = "👑 HOST (คนคุม)";
-            document.getElementById('display-role').style.background = "#E29AA0";
+            document.getElementById('display-role').style.background = "#FF6F91";
             init(); // resuming as host/admin: restart local intervals
         } else {
             document.body.classList.add('view-mode');
@@ -1611,7 +1611,7 @@ function renderDbPlayers(playerList) {
                     </div>
                 </div>
                 ${isAlreadyInQueue
-                    ? `<span style="font-size:0.8em; color:#C77E86; font-weight:bold;">มีในคิวแล้ว</span>`
+                    ? `<span style="font-size:0.8em; color:#FF6F91; font-weight:bold;">มีในคิวแล้ว</span>`
                     : `<button class="db-add-btn" onclick="addSinglePlayerFromDb('${encName}')">+ แอดลงคอร์ท</button>`
                 }
             </div>
