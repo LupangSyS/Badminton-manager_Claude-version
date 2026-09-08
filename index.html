@@ -49,9 +49,18 @@
 
     <!-- 🏟️ หน้าสนามหลัก -->
     <div id="app-container" style="display: none;">
-        <div id="room-header" style="background: #2c3e50; color: white; padding: 15px; text-align: center; font-size: 1.5rem; border-radius: 8px; margin: 20px;">
-            🏠 รหัสห้อง: <span id="display-room-id" style="color: #f1c40f; font-weight: bold;">ยังไม่ได้เข้าห้อง</span>
-            <span id="display-role" style="font-size: 1rem; background: #e74c3c; padding: 5px 10px; border-radius: 12px; margin-left: 15px;"></span>
+        <div id="room-header" class="app-header">
+            <div>
+                🏠 รหัสห้อง: <span id="display-room-id" style="color: #fbbf24; font-weight: 800; font-family: monospace;">ยังไม่ได้เข้าห้อง</span>
+                <span id="display-role" style="font-size: 0.8rem; background: #e11d48; padding: 4px 10px; border-radius: 999px; margin-left: 10px;"></span>
+            </div>
+            <div class="header-stats">
+                <span id="header-court-status">0 กำลังแข่ง / 0 คอร์ททั้งหมด</span>
+                <div class="header-divider"></div>
+                <span>คิวรอ: <span id="header-queue-count">0 คน</span></span>
+                <div class="header-divider"></div>
+                <span>แข่งเสร็จแล้ว: <span id="header-completed-count">0 แมตช์</span></span>
+            </div>
         </div>
 
         <div id="main-view">
@@ -131,12 +140,14 @@
                     <table class="stats-table">
                         <thead>
                             <tr>
-                                <th width="10%">#</th>
+                                <th width="8%">#</th>
                                 <th>ชื่อ</th>
-                                <th width="10%" style="color:#2980b9;">MMR</th>
-                                <th width="10%">P</th>
-                                <th width="10%">W</th>
-                                <th width="15%">%</th>
+                                <th width="10%">ระดับ</th>
+                                <th width="9%" style="color:#2980b9;">MMR</th>
+                                <th width="8%">P</th>
+                                <th width="8%">W</th>
+                                <th width="10%">%</th>
+                                <th width="12%">สถานะ</th>
                             </tr>
                         </thead>
                         <tbody id="stats-body"></tbody>
