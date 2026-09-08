@@ -552,7 +552,10 @@
                 alert('💾 บันทึกผลสรุปยอดเรียบร้อย!');
             } catch (err) {
                 console.error(err);
-                alert('❌ บันทึกไม่สำเร็จ เช็คเน็ตแล้วลองใหม่');
+                // Show the real Firestore error (permission-denied, invalid-argument, etc.)
+                // instead of a generic message — this is new, unproven code path so we
+                // need to see the actual cause if it fails again.
+                alert(`❌ บันทึกไม่สำเร็จ\n\nรายละเอียด: ${err.code ? `[${err.code}] ` : ''}${err.message || err}\n\nถ้าขึ้นว่า "permission-denied" หรือ "Missing or insufficient permissions" แปลว่า Firestore Security Rules ยังไม่อนุญาตให้เขียนคอลเลกชัน "bills" — ต้องไปเพิ่ม Rule ใน Firebase Console`);
             }
         }
 
