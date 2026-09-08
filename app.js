@@ -35,6 +35,16 @@ function generateRoomCode() {
     return `${datePart}-${randomPart}`;
 }
 
+// 📋 วางรหัสห้องจากคลิปบอร์ด — เผื่อเพื่อนส่งรหัสห้องมาทางแชท จะได้ไม่ต้องพิมพ์เอง
+async function pasteRoomCode() {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (text) document.getElementById('room-code-input').value = text.trim().toUpperCase();
+    } catch (err) {
+        alert('วางไม่ได้ครับ ลองก็อปรหัสห้องมาใหม่ หรือพิมพ์เองก็ได้');
+    }
+}
+
 // 👑 1. สร้างห้องใหม่ (Host)
 function createRoom() {
     currentRoomId = generateRoomCode();

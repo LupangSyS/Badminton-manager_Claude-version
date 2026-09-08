@@ -11,39 +11,52 @@
 <body>
 
     <!-- 🚪 หน้า Lobby -->
-    <div id="landing-page" style="text-align: center; margin-top: 50px;">
-        <h1 style="font-size: 2.5rem; color: #2c3e50;">🏸 Badminton Manager PRO</h1>
-        <p>ระบบจัดการคิวและสถิติแบบครบวงจร</p>
+    <div id="landing-page" style="padding: 20px; max-width: 800px; margin: 0 auto;">
 
-        <div style="margin: 30px auto; max-width: 400px; display: flex; flex-direction: column; gap: 15px;">
+        <div class="top-brand-bar">
+            <div class="brand">
+                <span class="brand-icon">🏸</span>
+                <span>Badminton Manager <span style="color:#6ee7b7;">PRO</span></span>
+            </div>
+            <span class="pro-badge">PRO</span>
+        </div>
 
-            <!-- โซนจัดการคอร์ท -->
-            <button onclick="createRoom()" class="primary" style="font-size: 1.2rem; padding: 15px; border-radius: 8px;">
-                👑 1. สร้างห้องใหม่ (Host)
-            </button>
+        <div class="landing-hero">
+            <div class="hero-icon">🏸</div>
+            <h1>Badminton Manager <span class="pro-accent">PRO</span></h1>
+            <p>ระบบจัดการคิว สุ่มจัดคู่ และสถิติก๊วนแบดมินตันแบบครบวงจร</p>
 
-            <div style="display: flex; gap: 10px; margin-top: 10px;">
-                <input type="text" id="room-code-input" placeholder="รหัสห้อง เช่น 1908-A1B2"
-                       style="flex: 1; text-align: center; font-size: 1.1rem; border-radius: 8px; border: 1px solid #ccc; text-transform: uppercase;">
-                <button onclick="joinRoomAdmin()" class="warning" style="padding: 10px 15px; border-radius: 8px; font-weight: bold;">
-                    🛠️ 2. เข้าห้อง (แอดมิน)
+            <div class="landing-card">
+                <button onclick="createRoom()" class="pill-btn pill-dark" style="color:white; border:none; cursor:pointer;">
+                    👑 1. สร้างห้องใหม่ (Host)
                 </button>
-                <button onclick="joinRoom()" class="secondary" style="padding: 10px 15px; border-radius: 8px; font-weight: bold;">
-                    📱 3. เข้าห้อง (ดูคิว)
+
+                <div class="room-code-row" style="margin-top: 14px;">
+                    <input type="text" id="room-code-input" placeholder="รหัสห้อง เช่น 0809-X805">
+                    <button onclick="pasteRoomCode()" class="paste-btn" style="border:none; cursor:pointer;" title="วางรหัสห้องจากคลิปบอร์ด">📋 วาง</button>
+                </div>
+
+                <div class="pill-row" style="margin-top: 10px;">
+                    <button onclick="joinRoomAdmin()" class="pill-btn pill-amber" style="color:white; border:none; cursor:pointer;">
+                        🛠️ 2. เข้าห้อง (แอดมิน)
+                    </button>
+                    <button onclick="joinRoom()" class="pill-btn pill-blue" style="color:white; border:none; cursor:pointer;">
+                        📱 3. เข้าห้อง (ดูคิว)
+                    </button>
+                </div>
+
+                <div class="landing-divider">ฟีเจอร์เพิ่มเติม</div>
+
+                <button onclick="window.location.href='database.html'" class="pill-btn pill-green" style="color:white; border:none; cursor:pointer; margin-bottom: 10px;">
+                    🌐 4. Hall of Fame (เพิ่ม/ลบคน)
+                </button>
+
+                <button onclick="window.location.href='history.html'" class="pill-btn pill-purple" style="color:white; border:none; cursor:pointer;">
+                    📊 5. ประวัติ & คำนวณค่าใช้จ่าย
                 </button>
             </div>
 
-            <hr style="width: 100%; border: 1px solid #ddd; margin: 15px 0;">
-
-            <!-- โซนสถิติหลังบ้าน -->
-            <button onclick="window.location.href='database.html'" class="success" style="font-size: 1.1rem; padding: 12px; border-radius: 8px; background: #27ae60; color: white; border: none; font-weight: bold; cursor: pointer;">
-                🌐 4. Hall of Fame (เพิ่ม/ลบคน)
-            </button>
-
-            <button onclick="window.location.href='history.html'" class="primary" style="font-size: 1.1rem; padding: 12px; border-radius: 8px; background: #8e44ad; color: white; border: none; font-weight: bold; cursor: pointer;">
-                📊 5. ประวัติ & คำนวณค่าใช้จ่าย
-            </button>
-
+            <p class="landing-hint">กด "1. สร้างห้องใหม่ (Host)" เพื่อสร้างห้องใหม่ แล้วส่งรหัสห้องให้เพื่อนเข้ามาต่อคิวได้เลย</p>
         </div>
     </div>
 
