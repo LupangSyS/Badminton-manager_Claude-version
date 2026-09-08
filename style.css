@@ -129,6 +129,8 @@ button.mini-btn { padding: 2px 6px; font-size: 0.75em; margin-left: auto; }
     font-size: 0.7em; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
     flex-shrink: 0; font-family: monospace;
 }
+/* Small name-only accent for women players, instead of a tap-to-toggle badge */
+.lady-name { color: #D9739E; font-weight: 800; }
 .player-item.skipped { background: rgba(255, 228, 230, 0.7); border: 1px solid #fda4af; }
 .player-item.skipped .queue-index-badge { background: var(--rose); color: white; }
 
@@ -331,6 +333,35 @@ button.mini-btn { padding: 2px 6px; font-size: 0.75em; margin-left: auto; }
 .finish-score-input { width: 100%; text-align: center; font-size: 1.6em; font-weight: 900; border-radius: 10px; padding: 6px; margin-bottom: 10px; background: white; box-sizing: border-box; }
 .finish-team-card.team-a .finish-score-input { border: 2px solid #93c5fd; color: #1D8FD9; }
 .finish-team-card.team-b .finish-score-input { border: 2px solid #fdba74; color: #D9722E; }
+/* Score wheel — scroll (or tap +/-) to pick a score; no typing needed */
+.score-picker { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.score-step {
+    width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; padding: 0;
+    font-size: 1.1em; font-weight: 900; line-height: 1; background: white; color: #64748b;
+    border: 2px solid #e2e8f0; box-shadow: none;
+}
+.score-wheel-wrap { position: relative; height: 120px; flex: 1; overflow: hidden; border-radius: 10px; background: white; }
+.score-wheel {
+    height: 120px; overflow-y: scroll; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.score-wheel::-webkit-scrollbar { display: none; }
+.score-wheel-pad { height: 40px; scroll-snap-align: center; }
+.score-wheel-item {
+    height: 40px; display: flex; align-items: center; justify-content: center;
+    font-size: 1.1em; font-weight: 700; color: #cbd5e1; scroll-snap-align: center; user-select: none;
+}
+.score-wheel-item.is-center { font-size: 1.6em; font-weight: 900; }
+.finish-team-card.team-a .score-wheel-item.is-center { color: #1D8FD9; }
+.finish-team-card.team-b .score-wheel-item.is-center { color: #D9722E; }
+.score-wheel-highlight {
+    position: absolute; top: 40px; left: 0; right: 0; height: 40px;
+    border-top: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    pointer-events: none; opacity: 0.25; color: #94a3b8;
+}
+.score-hint { font-size: 0.68em; font-weight: 700; color: #E08A2E; margin-bottom: 8px; animation: flash 1.6s infinite; }
+.score-hint.hidden-hint { visibility: hidden; }
+
 .finish-winner-btn { width: 100%; padding: 9px; border-radius: 10px; font-size: 0.78em; font-weight: 800; box-shadow: none; }
 .finish-team-card.team-a .finish-winner-btn { background: white; color: #1D8FD9; border: 2px solid #93c5fd; }
 .finish-team-card.team-a .finish-winner-btn.is-winner { background: #4FB3F0; color: white; border-color: #4FB3F0; }

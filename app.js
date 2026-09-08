@@ -152,15 +152,6 @@ const toggleLevel = (id) => {
     savePlayerProfileToCloud(p);
 };
 
-const toggleGender = (id) => {
-    const p = players.find(x => x.id === id);
-    if (!p) return;
-    p.gender = (p.gender === 'F') ? 'M' : 'F';
-    updateQueueDisplay();
-    triggerSave();
-    savePlayerProfileToCloud(p);
-};
-
 
 function getWinRate(p) {
     return p.gamesPlayed > 0 ? (p.wins / p.gamesPlayed) : 0;
@@ -599,10 +590,11 @@ function renderPlayerOnCourt(player, courtIdx, slotIdx) {
     const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(pl.name)}&background=random&color=fff`;
     const avatarImg = pl.avatarUrl ? pl.avatarUrl : defaultAvatar;
 
+    const nameDisplay = pl.gender === 'F' ? `<span class="lady-name">🌸 ${sanitizeHTML(pl.name)}</span>` : sanitizeHTML(pl.name);
     return `<div class="player-on-court court-slot" title="เปลี่ยนตัว" onclick="kickPlayer(${courtIdx}, ${slotIdx})">
         <div class="court-slot-avatar"><img src="${avatarImg}"></div>
         <div class="court-slot-info">
-            <div class="court-slot-name">${sanitizeHTML(pl.name)}</div>
+            <div class="court-slot-name">${nameDisplay}</div>
             <div class="court-slot-meta"><span>${pl.todayGames || 0}P</span>${badge}</div>
         </div>
     </div>`;
@@ -935,6 +927,71 @@ function stopGame(courtIdx) {
 }
 
 let pendingMatchWinner = null;
+let pendingMatchScores = null;
+const SCORE_WHEEL_MAX = 30;
+const SCORE_WHEEL_ITEM_H = 40;
+// Tracks whether each team's score has actually been set this round (by
+// scrolling, tapping +/-, or the winner button's 21 default) — submitting
+// is blocked until both are touched, so a losing score can never silently
+// default to 0 just because nobody scrolled it.
+let scoreTouched = [false, false];
+let scoreWheelProgrammatic = [false, false];
+let scoreScrollTimers = [null, null];
+
+function buildScoreWheel(teamIdx) {
+    const wheel = document.getElementById(`score-wheel-${teamIdx}`);
+    let html = '<div class="score-wheel-pad"></div>';
+    for (let n = 0; n <= SCORE_WHEEL_MAX; n++) {
+        html += `<div class="score-wheel-item" data-value="${n}">${n}</div>`;
+    }
+    html += '<div class="score-wheel-pad"></div>';
+    wheel.innerHTML = html;
+    wheel.onscroll = () => onScoreWheelScroll(teamIdx);
+}
+
+function setWheelValue(teamIdx, value, touched) {
+    value = Math.max(0, Math.min(SCORE_WHEEL_MAX, value));
+    const wheel = document.getElementById(`score-wheel-${teamIdx}`);
+    scoreWheelProgrammatic[teamIdx] = true;
+    wheel.scrollTop = value * SCORE_WHEEL_ITEM_H;
+    highlightWheelCenter(teamIdx, value);
+    if (touched) markScoreTouched(teamIdx);
+    setTimeout(() => { scoreWheelProgrammatic[teamIdx] = false; }, 50);
+}
+
+function getWheelValue(teamIdx) {
+    const wheel = document.getElementById(`score-wheel-${teamIdx}`);
+    return Math.max(0, Math.min(SCORE_WHEEL_MAX, Math.round(wheel.scrollTop / SCORE_WHEEL_ITEM_H)));
+}
+
+function highlightWheelCenter(teamIdx, value) {
+    const wheel = document.getElementById(`score-wheel-${teamIdx}`);
+    wheel.querySelectorAll('.score-wheel-item').forEach(el => {
+        el.classList.toggle('is-center', parseInt(el.dataset.value, 10) === value);
+    });
+}
+
+function markScoreTouched(teamIdx) {
+    if (scoreTouched[teamIdx]) return;
+    scoreTouched[teamIdx] = true;
+    const hint = document.getElementById(`score-hint-${teamIdx}`);
+    if (hint) hint.classList.add('hidden-hint');
+}
+
+function onScoreWheelScroll(teamIdx) {
+    const value = getWheelValue(teamIdx);
+    highlightWheelCenter(teamIdx, value);
+    if (!scoreWheelProgrammatic[teamIdx]) markScoreTouched(teamIdx);
+    clearTimeout(scoreScrollTimers[teamIdx]);
+    scoreScrollTimers[teamIdx] = setTimeout(() => {
+        onMatchScoreInput();
+    }, 120);
+}
+
+function stepScore(teamIdx, delta) {
+    setWheelValue(teamIdx, getWheelValue(teamIdx) + delta, true);
+    onMatchScoreInput();
+}
 
 function openFinishMatchModal(courtIdx) {
     const court = courts[courtIdx];
@@ -946,8 +1003,13 @@ function openFinishMatchModal(courtIdx) {
     document.getElementById('finish-team-names-0').innerText = nameList(0, 2);
     document.getElementById('finish-team-names-1').innerText = nameList(2, 4);
 
-    document.getElementById('finish-score-0').value = '';
-    document.getElementById('finish-score-1').value = '';
+    buildScoreWheel(0);
+    buildScoreWheel(1);
+    scoreTouched = [false, false];
+    document.getElementById('score-hint-0').classList.remove('hidden-hint');
+    document.getElementById('score-hint-1').classList.remove('hidden-hint');
+    setWheelValue(0, 0, false);
+    setWheelValue(1, 0, false);
     pendingMatchWinner = null;
     updateWinnerButtons();
 
@@ -955,19 +1017,21 @@ function openFinishMatchModal(courtIdx) {
 }
 
 function onMatchScoreInput() {
-    const a = parseInt(document.getElementById('finish-score-0').value, 10) || 0;
-    const b = parseInt(document.getElementById('finish-score-1').value, 10) || 0;
+    const a = getWheelValue(0);
+    const b = getWheelValue(1);
     if (a > b) pendingMatchWinner = 0;
     else if (b > a) pendingMatchWinner = 1;
     else pendingMatchWinner = null;
     updateWinnerButtons();
 }
 
-// Tapping "ทีม X ชนะ" fills in the standard 21 points for that team as a
-// starting point — the host can still bump it up (e.g. 23-21) before saving.
+// Tapping "ทีม X ชนะ" scrolls that team's wheel to the standard 21 points as
+// a starting point — the host can still bump it up (e.g. 23-21) before
+// saving. It only marks THIS team's score as set; the other side still
+// needs its own scroll/tap before the result can be saved.
 function setMatchWinner(teamIdx) {
     pendingMatchWinner = teamIdx;
-    document.getElementById(`finish-score-${teamIdx}`).value = 21;
+    setWheelValue(teamIdx, 21, true);
     updateWinnerButtons();
 }
 
@@ -979,7 +1043,14 @@ function updateWinnerButtons() {
 }
 
 function submitMatchResult() {
-    if (pendingMatchWinner === null) { alert('กรุณาเลือกทีมที่ชนะ หรือใส่คะแนนให้ไม่เท่ากันก่อนครับ'); return; }
+    if (!scoreTouched[0] || !scoreTouched[1]) {
+        alert('กรุณาเลื่อน (หรือกด +/-) ใส่คะแนนของทั้งสองทีมก่อนครับ — ทีมที่แพ้ก็ต้องใส่ด้วยนะ');
+        return;
+    }
+    if (pendingMatchWinner === null) { alert('คะแนนเท่ากัน กรุณาปรับคะแนนหรือกดเลือกทีมที่ชนะก่อนครับ'); return; }
+    // Read the wheel values now, while the modal (and its scroll position)
+    // is still visible — a hidden element's scrollTop reads back as 0.
+    pendingMatchScores = [getWheelValue(0), getWheelValue(1)];
     resolveGame(pendingMatchWinner);
 }
 
@@ -1015,10 +1086,7 @@ function resolveGame(winningTeamIdx) {
             }
         }
 
-        const scoreInput0 = document.getElementById('finish-score-0');
-        const scoreInput1 = document.getElementById('finish-score-1');
-        const score0 = scoreInput0 ? (parseInt(scoreInput0.value, 10) || 0) : null;
-        const score1 = scoreInput1 ? (parseInt(scoreInput1.value, 10) || 0) : null;
+        const [score0, score1] = pendingMatchScores || [null, null];
         const scoreWin = winningTeamIdx === 0 ? score0 : score1;
         const scoreLose = winningTeamIdx === 0 ? score1 : score0;
 
@@ -1414,9 +1482,6 @@ function updateQueueDisplay() {
         const lv = p.level || 'BG';
         const tierBadge = `<span class="tier-badge tier-${lv}" onclick="toggleLevel(${p.id})" style="cursor:pointer;" title="คลิกเปลี่ยนระดับ">${lv}</span>`;
 
-        const genderIcon = (p.gender === 'F') ? '👩' : '👨';
-        const genderBadge = `<span onclick="toggleGender(${p.id})" style="cursor:pointer; font-size:1.1em; margin-right:5px; background:rgba(255,255,255,0.5); border-radius:50%; padding:0 2px;" title="คลิกสลับเพศ">${genderIcon}</span>`;
-
         const waitBadge = !p.isResting ? `<span class="wait-badge ${badgeClass}">${badgeText}</span>` : '<small style="color:gray;">(พัก)</small>';
         // Anti-starvation pity rule: this player is guaranteed the next seat.
         const skipAlertBadge = isSkipped ? `<span class="skip-alert-badge">🔥 ต้องได้ลงแล้ว!</span>` : '';
@@ -1426,13 +1491,15 @@ function updateQueueDisplay() {
         const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random&color=fff`;
         const avatarImg = p.avatarUrl ? p.avatarUrl : defaultAvatar;
 
-        const safeName = sanitizeHTML(p.name);
+        // Gender is fixed (set from Hall of Fame), not something to tap-toggle
+        // here anymore — women's names get a small accent instead of a badge.
+        const safeName = p.gender === 'F' ? `<span class="lady-name">🌸 ${sanitizeHTML(p.name)}</span>` : sanitizeHTML(p.name);
         // ✅ FIX: name passed into the onclick is now URL-encoded, not the raw or
         // HTML-escaped name — a name containing a quote (e.g. "O'Brien") used to
         // break this onclick handler. showBigImage() decodes it back for display.
         const avatarHtml = `<img src="${avatarImg}" class="mini-avatar" style="margin-right: 5px; cursor: zoom-in;" onclick="event.stopPropagation(); showBigImage('${avatarImg}', '${encodeURIComponent(p.name)}')">`;
 
-        return `<li class="${itemClass}" style="${opacityStyle}"><div class="player-info">${indexBadge}${!p.isResting ? tierBadge + genderBadge : ''}${avatarHtml}<strong>${namePrefix}${safeName}</strong>${p.bookingId ? `<small onclick="cancelBooking('${p.bookingId}')" style="cursor:pointer;">🔒</small>` : ''}${skipAlertBadge}${!p.isResting ? mmrLabel : ''}${waitBadge}</div><button class="mini-btn ${p.isResting ? 'success' : 'secondary'}" style="margin-right:5px;" onclick="toggleRest(${p.id})">${p.isResting ? 'ตื่น' : '💤'}</button><button class="mini-btn danger" onclick="removePlayer(${p.id})">×</button></li>`;
+        return `<li class="${itemClass}" style="${opacityStyle}"><div class="player-info">${indexBadge}${!p.isResting ? tierBadge : ''}${avatarHtml}<strong>${namePrefix}${safeName}</strong>${p.bookingId ? `<small onclick="cancelBooking('${p.bookingId}')" style="cursor:pointer;">🔒</small>` : ''}${skipAlertBadge}${!p.isResting ? mmrLabel : ''}${waitBadge}</div><button class="mini-btn ${p.isResting ? 'success' : 'secondary'}" style="margin-right:5px;" onclick="toggleRest(${p.id})">${p.isResting ? 'ตื่น' : '💤'}</button><button class="mini-btn danger" onclick="removePlayer(${p.id})">×</button></li>`;
     }).join('');
 
     updateNextMatchPanel();

@@ -261,13 +261,29 @@
                     <div class="finish-team-card team-a">
                         <div class="finish-team-label">ทีม A (น้ำเงิน)</div>
                         <div id="finish-team-names-0" class="finish-team-names"></div>
-                        <input type="number" id="finish-score-0" class="finish-score-input" min="0" max="45" value="21" oninput="onMatchScoreInput()">
+                        <div class="score-picker">
+                            <button class="score-step" onclick="stepScore(0,-1)">−</button>
+                            <div class="score-wheel-wrap">
+                                <div class="score-wheel" id="score-wheel-0"></div>
+                                <div class="score-wheel-highlight"></div>
+                            </div>
+                            <button class="score-step" onclick="stepScore(0,1)">+</button>
+                        </div>
+                        <div class="score-hint" id="score-hint-0">👆 เลื่อนใส่คะแนน</div>
                         <button id="finish-winner-btn-0" class="finish-winner-btn" onclick="setMatchWinner(0)">🏆 ทีม A ชนะ</button>
                     </div>
                     <div class="finish-team-card team-b">
                         <div class="finish-team-label">ทีม B (ส้ม)</div>
                         <div id="finish-team-names-1" class="finish-team-names"></div>
-                        <input type="number" id="finish-score-1" class="finish-score-input" min="0" max="45" value="0" oninput="onMatchScoreInput()">
+                        <div class="score-picker">
+                            <button class="score-step" onclick="stepScore(1,-1)">−</button>
+                            <div class="score-wheel-wrap">
+                                <div class="score-wheel" id="score-wheel-1"></div>
+                                <div class="score-wheel-highlight"></div>
+                            </div>
+                            <button class="score-step" onclick="stepScore(1,1)">+</button>
+                        </div>
+                        <div class="score-hint" id="score-hint-1">👆 เลื่อนใส่คะแนน</div>
                         <button id="finish-winner-btn-1" class="finish-winner-btn" onclick="setMatchWinner(1)">🏆 ทีม B ชนะ</button>
                     </div>
                 </div>
