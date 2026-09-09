@@ -284,11 +284,11 @@ async function addPlayers() {
         let cleanName = name.replace(/^[\d]+\.[\s]*/, '');
         if (!cleanName) continue;
 
-        let joinTime = Date.now();
+        let joinTime = Date.now() + Math.random();
         let isFastPass = false;
 
         if (maxGamesInSystem > 2) {
-            joinTime = Date.now() - (60 * 60 * 1000);
+            joinTime = Date.now() - (60 * 60 * 1000) + Math.random();
             isFastPass = true;
         }
 
@@ -375,7 +375,9 @@ function resetStatsOnly() {
         p.sessionGames = 0;
 
         p.status = 'waiting';
-        p.joinedQueueAt = Date.now();
+        // + Math.random() so a whole batch of players reset at once (as here)
+        // doesn't tie on the exact millisecond — see sendToQueue() for why that matters.
+        p.joinedQueueAt = Date.now() + Math.random();
         p.bookingId = null;
         p.isFastPass = false;
     });
@@ -493,7 +495,7 @@ function renderCourts() {
         if (removed.players.length > 0) {
             removed.players.forEach(p => {
                 const pl = players.find(x => x.id === p.id);
-                if(pl) { pl.status = 'waiting'; pl.joinedQueueAt = Date.now(); pl.sessionGames = 0; }
+                if(pl) { pl.status = 'waiting'; pl.joinedQueueAt = Date.now() + Math.random(); pl.sessionGames = 0; }
             });
         }
     }
@@ -1190,7 +1192,11 @@ function resolveGame(winningTeamIdx) {
 
 function sendToQueue(playerId) {
   const pl = players.find(x => x.id === playerId);
-   if(pl) { pl.status = 'waiting'; pl.joinedQueueAt = Date.now(); pl.sessionGames = 0; pl.lastFinishedAt = Date.now(); }
+   // + Math.random(): all 4 players from one finished match call this within the
+   // same millisecond, so without a tiebreaker they'd sort back into the queue in a
+   // fixed, repeatable order (favoring whoever was added to the room earliest)
+   // instead of a fair, effectively-random order among themselves.
+   if(pl) { pl.status = 'waiting'; pl.joinedQueueAt = Date.now() + Math.random(); pl.sessionGames = 0; pl.lastFinishedAt = Date.now(); }
 }
 
 const kickPlayer = (courtIdx, slotIdx) => {
