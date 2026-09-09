@@ -900,6 +900,19 @@ const fillCourtQueue = (courtIdx) => {
 function startGame(courtIdx) {
     const court = courts[courtIdx];
     court.state = 'playing'; court.gameStartTime = Date.now(); court.timer = 0; court.autoStartTarget = null;
+
+    // Snapshot of anyone excluded from THIS draft for a legitimate reason
+    // (resting, booked elsewhere, or outside this court's rank filter) —
+    // carried through to the match log so the History timeline can tell a
+    // real "skip" apart from someone who was never actually eligible.
+    court.draftContext = {
+        restingNames: players.filter(p => p.isResting).map(p => p.name),
+        bookedNames: players.filter(p => p.bookingId).map(p => p.name),
+        rankFilterOn: !!court.isRankFilterOn,
+        rankMin: court.isRankFilterOn ? (court.minRank || null) : null,
+        rankMax: court.isRankFilterOn ? (court.maxRank || null) : null,
+    };
+
     if(court.players[0] && court.players[1]) recordPairing(court.players[0].id, court.players[1].id);
     if(court.players[2] && court.players[3]) recordPairing(court.players[2].id, court.players[3].id);
     const p0 = court.players[0]; const p1 = court.players[1];
@@ -1091,6 +1104,7 @@ function resolveGame(winningTeamIdx) {
         const scoreWin = winningTeamIdx === 0 ? score0 : score1;
         const scoreLose = winningTeamIdx === 0 ? score1 : score0;
 
+        const draftContext = court.draftContext || {};
         const newLog = {
             time: new Date().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'}),
             court: activeGameResolveCourtId+1,
@@ -1099,6 +1113,11 @@ function resolveGame(winningTeamIdx) {
             duration: formatTime(court.timer),
             scoreWin: scoreWin,
             scoreLose: scoreLose,
+            restingNames: draftContext.restingNames || [],
+            bookedNames: draftContext.bookedNames || [],
+            rankFilterOn: draftContext.rankFilterOn || false,
+            rankMin: draftContext.rankMin || null,
+            rankMax: draftContext.rankMax || null,
         };
         matchLogs.unshift(newLog);
 
