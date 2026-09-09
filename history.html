@@ -118,7 +118,9 @@
 
                             rawMatches.push({
                                 roomId, date: dateStr, sortMonthDay: sortKey, time: log.time || "00:00",
-                                duration: log.duration || "-", winners: winArray, losers: loseArray
+                                duration: log.duration || "-", winners: winArray, losers: loseArray,
+                                scoreWin: (typeof log.scoreWin === 'number') ? log.scoreWin : null,
+                                scoreLose: (typeof log.scoreLose === 'number') ? log.scoreLose : null
                             });
                         });
                     }
@@ -250,7 +252,7 @@
                     <div class="match-row" style="${involved ? '' : 'opacity:0.3;'}">
                         <div style="font-size:0.8em; color:gray; width:40px;">${sanitizeHTML(m.time)}</div>
                         <div class="team">${renderTeam(m.winners)} <span style="color:#27ae60; font-size:1.2em;">👑</span></div>
-                        <div class="vs-badge">VS</div>
+                        <div class="vs-badge">${m.scoreWin !== null ? `${m.scoreWin}-${m.scoreLose}` : 'VS'}</div>
                         <div class="team losers" style="opacity:0.8;">${renderTeam(m.losers)}</div>
                     </div>
                 `;
