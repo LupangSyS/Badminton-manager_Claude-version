@@ -26,6 +26,15 @@
         .top-brand-bar a { color: #cbd5e1; text-decoration: none; font-size: 0.85em; font-weight: 600; padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,0.08); }
         .top-brand-bar a:hover { background: rgba(255,255,255,0.16); }
         p.subtitle { text-align: center; color: #64748b; margin: 0 0 25px 0; }
+        .sort-bar {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            max-width: 1200px; margin: 0 auto 22px; font-size: 0.9em; color: #475569;
+        }
+        .sort-bar select {
+            padding: 8px 14px; border-radius: 999px; border: 1px solid var(--slate-border);
+            background: white; font-family: inherit; font-size: 0.95em; font-weight: 600;
+            color: #1e293b; cursor: pointer;
+        }
         .grid-container {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -97,6 +106,16 @@
     </div>
     <p class="subtitle">ฐานข้อมูลผู้เล่นทั้งหมด (แก้ไขข้อมูล/อัปโหลดรูปตรงขึ้น Firebase)</p>
 
+    <div class="sort-bar">
+        <label for="sort-select">🔽 เรียงตาม:</label>
+        <select id="sort-select" onchange="renderGrid()">
+            <option value="mmr_desc">MMR สูง → ต่ำ</option>
+            <option value="name_az">ชื่อ A-Z / ก-ฮ</option>
+            <option value="winrate_desc">อัตราชนะ สูง → ต่ำ</option>
+            <option value="games_desc">ลงเล่นเยอะสุด</option>
+        </select>
+    </div>
+
     <div class="grid-container" id="database-grid">
         <div style="text-align:center; width:100%; grid-column: 1 / -1;">กำลังโหลดข้อมูลดาต้าเบส... ⏳</div>
     </div>
@@ -166,15 +185,31 @@
         // Cache of the currently-loaded profiles, keyed by encoded name, so the
         // edit modal can be pre-filled without a separate Firestore read.
         let playersCache = {};
+        let allPlayersRaw = []; // unsorted snapshot data — re-sorted on demand, no refetch needed
+
+        function getWinRate(p) { return p.gamesPlayed > 0 ? (p.wins / p.gamesPlayed) : 0; }
+
+        function sortPlayers(list) {
+            const sortBy = document.getElementById('sort-select').value;
+            const sorted = [...list];
+            if (sortBy === 'name_az') sorted.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'th'));
+            else if (sortBy === 'winrate_desc') sorted.sort((a, b) => getWinRate(b) - getWinRate(a));
+            else if (sortBy === 'games_desc') sorted.sort((a, b) => (b.gamesPlayed || 0) - (a.gamesPlayed || 0));
+            else sorted.sort((a, b) => (b.mmr || 0) - (a.mmr || 0)); // mmr_desc (default)
+            return sorted;
+        }
 
         db.collection('players_profile').onSnapshot(snapshot => {
+            allPlayersRaw = [];
+            snapshot.forEach(doc => { allPlayersRaw.push(doc.data()); });
+            renderGrid();
+        });
+
+        function renderGrid() {
             const grid = document.getElementById('database-grid');
             grid.innerHTML = '';
 
-            let players = [];
-            snapshot.forEach(doc => { players.push(doc.data()); });
-
-            players.sort((a, b) => (b.mmr || 0) - (a.mmr || 0));
+            const players = sortPlayers(allPlayersRaw);
             playersCache = {};
 
             players.forEach(p => {
@@ -211,7 +246,7 @@
                     </div>
                 `;
             });
-        });
+        }
 
         // ----------------------------------------------------
         // ✏️ แก้ไขชื่อ / ระดับ / เพศ
