@@ -253,14 +253,16 @@ button.mini-btn { padding: 2px 6px; font-size: 0.75em; margin-left: auto; }
     background: linear-gradient(135deg, #2FAE72 0%, #4FCB8D 60%, #7EE3AF 100%);
     box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.25);
     border: 2px solid #ffffff; border-radius: 12px; position: relative;
-    min-height: 140px; display: flex; align-items: center; justify-content: space-between;
+    min-height: 140px; display: flex; flex-direction: column; justify-content: space-between;
     padding: 6px; overflow: hidden;
 }
-.court-net { position: absolute; top: 0; bottom: 0; left: 50%; width: 3px; transform: translateX(-50%); background: #fff; box-shadow: 0 0 6px rgba(255,255,255,0.9); z-index: 2; }
-.court-center-h { position: absolute; top: 50%; left: 0; right: 0; height: 1.5px; background: rgba(255,255,255,0.7); }
+/* Net runs horizontally, same as looking down at a real court — each team's
+   2 players sit side by side on their own half, not stacked front-to-back. */
+.court-net { position: absolute; left: 0; right: 0; top: 50%; height: 3px; transform: translateY(-50%); background: #fff; box-shadow: 0 0 6px rgba(255,255,255,0.9); z-index: 2; }
 
 .court-players { flex: 1; display: flex; align-items: center; justify-content: space-between; z-index: 1; }
-.team { width: 47%; display: flex; flex-direction: column; gap: 6px; background: none; padding: 0; border-radius: 0; }
+.team { width: 100%; flex: 1; display: flex; flex-direction: row; align-items: center; gap: 6px; background: none; padding: 0; border-radius: 0; }
+.team > .player-on-court, .team > .court-slot { flex: 1; min-width: 0; }
 .court-vs-badge {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     background: rgba(0,0,0,0.55); color: #7EE3AF; font-size: 0.65em; font-weight: 900;
