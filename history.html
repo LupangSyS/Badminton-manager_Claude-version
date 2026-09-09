@@ -84,6 +84,7 @@
         let currentFocusPlayer = null;   // คนที่กดเลือกดูสถิติเฉพาะวัน/ห้องนี้
         let currentAnalyzedPlayer = '';
         let currentPlayerPartnerStats = []; // เก็บสถิติเวลาจิ้มดูรายคน (all-time, แท็บสถิติคู่หู)
+        let roomPlayers = {}; // roomId -> [{name, checkInTime}] — used to reconstruct the timeline
 
         async function fetchData() {
             try {
@@ -110,6 +111,9 @@
                             lastUpdated: roomData.lastUpdated ? new Date(roomData.lastUpdated).getTime() : 0,
                             gameCount: roomData.matchLogs.length
                         };
+                        roomPlayers[roomId] = (roomData.players || [])
+                            .filter(p => p.name && p.checkInTime)
+                            .map(p => ({ name: p.name, checkInTime: p.checkInTime }));
 
                         roomData.matchLogs.forEach(log => {
                             if (!log.winners || !log.losers) return;
@@ -118,7 +122,8 @@
 
                             rawMatches.push({
                                 roomId, date: dateStr, sortMonthDay: sortKey, time: log.time || "00:00",
-                                duration: log.duration || "-", winners: winArray, losers: loseArray,
+                                duration: log.duration || "-", court: log.court || null,
+                                winners: winArray, losers: loseArray,
                                 scoreWin: (typeof log.scoreWin === 'number') ? log.scoreWin : null,
                                 scoreLose: (typeof log.scoreLose === 'number') ? log.scoreLose : null
                             });
@@ -237,6 +242,7 @@
 
             if (currentFocusPlayer && namesInRoom.has(currentFocusPlayer)) {
                 html += renderRoomPlayerStatsHTML(matches, currentFocusPlayer);
+                html += renderPlayerTimelineHTML(roomId, currentFocusPlayer);
             }
 
             matches.forEach(m => {
@@ -360,6 +366,183 @@
                     </div>
                 </div>
             </div>`;
+        }
+
+        // ==========================================
+        // 📈 เส้นเวลา (Timeline) — สร้างขึ้นมาจากข้อมูลที่มีอยู่แล้วล้วนๆ
+        // (เวลาจบ + ระยะเวลาแต่ละเกม + เวลาเช็คอิน) ไม่มีการเก็บข้อมูลใหม่เพิ่ม
+        //
+        // วิธีคิด "ถูกข้าม": ไล่ดูทุกแมตช์ในห้องเรียงตามเวลาเริ่ม (= เวลาจบ - ระยะเวลา)
+        // ถ้าคนที่เรากำลังดูอยู่ "เช็คอินแล้ว" และ "ไม่ได้ติดคอร์ทอยู่" ตอนแมตช์อื่นเริ่ม
+        // แต่ไม่ได้ถูกเลือกลงคอร์ทนั้น แปลว่าโดนข้ามไปรอบนั้น — ข้อจำกัด: ถ้าเคยกด "พัก"
+        // ระหว่างเกม อันนั้นไม่มีการบันทึกเวลาไว้ เลยอาจจะขึ้นเป็น "ถูกข้าม" ผิดๆ ได้
+        // ==========================================
+        function buildPlayerTimeline(roomId, playerName) {
+            const matches = groupedMatches[roomId] || [];
+            const roster = roomPlayers[roomId] || [];
+
+            const parseDurationSec = (mmss) => {
+                const parts = String(mmss || '0:00').split(':').map(Number);
+                if (parts.length !== 2 || parts.some(isNaN)) return 0;
+                return parts[0] * 60 + parts[1];
+            };
+
+            // "time" saved on each match is the FINISH time as HH:MM (no date, no
+            // seconds) — anchor it to a real calendar date using any check-in's date.
+            let refDate = new Date();
+            const anyCheckIn = roster.find(p => p.checkInTime);
+            if (anyCheckIn) refDate = new Date(anyCheckIn.checkInTime);
+            const parseTimeOfDay = (hhmm) => {
+                const bits = String(hhmm || '00:00').split(':').map(Number);
+                const d = new Date(refDate);
+                d.setHours(bits[0] || 0, bits[1] || 0, 0, 0);
+                return d;
+            };
+
+            const intervals = matches
+                .map(m => {
+                    const end = parseTimeOfDay(m.time);
+                    const start = new Date(end.getTime() - parseDurationSec(m.duration) * 1000);
+                    return { ...m, start, end };
+                })
+                .sort((a, b) => a.start - b.start);
+
+            if (intervals.length === 0) return { events: [], sessionStart: null, sessionEnd: null };
+
+            const checkInByName = {};
+            roster.forEach(p => { checkInByName[p.name] = new Date(p.checkInTime); });
+
+            const sessionStart = intervals[0].start;
+            const sessionEnd = intervals[intervals.length - 1].end;
+
+            // Precompute the player's OWN play intervals first, and check against
+            // those directly — rather than a running "busy until" tally updated in
+            // start-time order, which would misfire if two courts' matches happen
+            // to start at the exact same instant (tie-order in the sort would then
+            // decide whether "busy" was already recorded, which isn't reliable).
+            const ownIntervals = intervals
+                .filter(iv => [...iv.winners, ...iv.losers].includes(playerName))
+                .map(iv => [iv.start, iv.end]);
+            const isBusyAt = (t) => ownIntervals.some(([s, e]) => t >= s && t < e);
+
+            const events = [];
+
+            intervals.forEach(iv => {
+                const team = [...iv.winners, ...iv.losers];
+                const involved = team.includes(playerName);
+
+                if (involved) {
+                    const isWinner = iv.winners.includes(playerName);
+                    const partner = (isWinner ? iv.winners : iv.losers).find(n => n !== playerName);
+                    const opponents = isWinner ? iv.losers : iv.winners;
+                    const scoreKnown = iv.scoreWin !== null && iv.scoreWin !== undefined;
+                    events.push({
+                        type: 'enter', time: iv.start, court: iv.court,
+                        label: `${playerName} + ${partner || '-'}  VS  ${opponents.join(' + ')}`
+                    });
+                    events.push({
+                        type: 'finish', time: iv.end, court: iv.court,
+                        label: isWinner ? '🏆 ชนะ' : '❌ แพ้',
+                        detail: scoreKnown ? `${isWinner ? iv.scoreWin : iv.scoreLose}-${isWinner ? iv.scoreLose : iv.scoreWin}` : null
+                    });
+                } else {
+                    const checkedIn = checkInByName[playerName] && checkInByName[playerName] <= iv.start;
+                    if (checkedIn && !isBusyAt(iv.start)) {
+                        events.push({
+                            type: 'skip', time: iv.start, court: iv.court,
+                            label: 'ถูกข้าม',
+                            detail: `${iv.winners.join(' + ')}  VS  ${iv.losers.join(' + ')}`
+                        });
+                    }
+                }
+            });
+
+            events.sort((a, b) => a.time - b.time);
+            return { events, sessionStart, sessionEnd };
+        }
+
+        let currentTimelineEvents = [];
+
+        function renderPlayerTimelineHTML(roomId, playerName) {
+            const { events, sessionStart, sessionEnd } = buildPlayerTimeline(roomId, playerName);
+            currentTimelineEvents = events;
+
+            if (events.length === 0 || !sessionStart) {
+                return `<div style="background:#fff; border:1px solid #eee; border-radius:12px; padding:16px; margin-bottom:16px; text-align:center; color:#94a3b8; font-size:0.9em;">📈 ยังไม่มีข้อมูลพอสร้างเส้นเวลา</div>`;
+            }
+
+            const enterCount = events.filter(e => e.type === 'enter').length;
+            const skipCount = events.filter(e => e.type === 'skip').length;
+
+            const PX_PER_MIN = 6;
+            const axisStart = new Date(sessionStart); axisStart.setMinutes(0, 0, 0);
+            const axisEnd = new Date(sessionEnd); axisEnd.setMinutes(axisEnd.getMinutes() + 15);
+            const totalMin = Math.max(30, (axisEnd - axisStart) / 60000);
+            const trackWidth = Math.max(500, totalMin * PX_PER_MIN);
+            const xOf = (d) => ((d - axisStart) / 60000) * PX_PER_MIN;
+
+            const hourTicks = [];
+            let hourCursor = new Date(axisStart);
+            while (hourCursor <= axisEnd) {
+                hourTicks.push(new Date(hourCursor));
+                hourCursor = new Date(hourCursor.getTime() + 60 * 60000);
+            }
+
+            const colors = { enter: '#27ae60', finish: '#2c3e50', skip: '#f39c12' };
+            const dotsHTML = events.map((e, idx) => `
+                <div onclick="showTimelineDetail(${idx})"
+                     title="${sanitizeHTML(e.label)}"
+                     style="position:absolute; left:${xOf(e.time)}px; top:50%; transform:translate(-50%,-50%);
+                            width:${e.type === 'finish' ? 10 : 14}px; height:${e.type === 'finish' ? 10 : 14}px;
+                            border-radius:50%; background:${colors[e.type]}; border:2px solid white;
+                            box-shadow:0 1px 4px rgba(0,0,0,0.3); cursor:pointer; z-index:2;">
+                </div>
+            `).join('');
+
+            const hourTicksHTML = hourTicks.map(h => `
+                <div style="position:absolute; left:${xOf(h)}px; top:0; bottom:0; width:1px; background:rgba(0,0,0,0.06);"></div>
+                <div style="position:absolute; left:${xOf(h)}px; bottom:-20px; font-size:0.72em; color:#94a3b8; font-family:monospace; white-space:nowrap;">
+                    ${h.getHours().toString().padStart(2,'0')}:00
+                </div>
+            `).join('');
+
+            return `
+            <div style="background:#fff; border:1px solid #eee; border-radius:12px; padding:16px; margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
+                    <div style="font-weight:bold; color:#2c3e50;">📈 เส้นเวลาของ ${sanitizeHTML(playerName)}</div>
+                    <div style="font-size:0.82em; color:#7f8c8d;">
+                        <span style="color:${colors.enter}; font-weight:bold;">● เข้าคอร์ท ${enterCount}</span> &nbsp;
+                        <span style="color:${colors.skip}; font-weight:bold;">● ถูกข้าม ${skipCount}</span> &nbsp;
+                        <span style="color:${colors.finish}; font-weight:bold;">● จบเกม</span>
+                    </div>
+                </div>
+                <div style="overflow-x:auto; padding-bottom:24px;">
+                    <div style="position:relative; width:${trackWidth}px; height:36px; margin-top:10px;">
+                        <div style="position:absolute; left:0; right:0; top:50%; height:2px; background:#e2e8f0; transform:translateY(-50%);"></div>
+                        ${hourTicksHTML}
+                        ${dotsHTML}
+                    </div>
+                </div>
+                <div id="timeline-detail" style="margin-top:10px; padding:10px 12px; background:#f8fafc; border-radius:8px; font-size:0.85em; color:#2c3e50; min-height:20px;">
+                    👆 แตะจุดสีบนเส้นเวลาเพื่อดูรายละเอียด (สีเขียว=เข้าคอร์ท, สีส้ม=ถูกข้าม, สีเทาเข้ม=จบเกม)
+                </div>
+                <p style="font-size:0.75em; color:#bbb; margin:8px 0 0;">* เวลาคำนวณจากเวลาจบเกม−ระยะเวลาแข่ง อาจคลาดเคลื่อนได้ ±1 นาที และถ้าเคยกดพักระหว่างเกมโดยไม่ได้บันทึกเวลา อาจขึ้น "ถูกข้าม" ผิดได้</p>
+            </div>`;
+        }
+
+        function showTimelineDetail(idx) {
+            const e = currentTimelineEvents[idx];
+            const box = document.getElementById('timeline-detail');
+            if (!e || !box) return;
+            const timeStr = e.time.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+            const courtStr = e.court ? ` • คอร์ท ${e.court}` : '';
+            if (e.type === 'enter') {
+                box.innerHTML = `<strong style="color:#27ae60;">🟢 ${timeStr}${courtStr} — เข้าคอร์ท</strong><br>${sanitizeHTML(e.label)}`;
+            } else if (e.type === 'finish') {
+                box.innerHTML = `<strong style="color:#2c3e50;">⚫ ${timeStr}${courtStr} — จบเกม</strong><br>${sanitizeHTML(e.label)}${e.detail ? ` (${sanitizeHTML(e.detail)})` : ''}`;
+            } else {
+                box.innerHTML = `<strong style="color:#f39c12;">🟠 ${timeStr}${courtStr} — ถูกข้าม</strong><br>คนที่ได้ลงแทน: ${sanitizeHTML(e.detail)}`;
+            }
         }
 
         // ==========================================
