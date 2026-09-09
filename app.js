@@ -546,7 +546,6 @@ function renderCourts() {
 
               <div class="court-surface" style="position: relative;">
                 <div class="court-net"></div>
-                <div class="court-center-h"></div>
                 <div class="court-vs-badge">VS</div>
                 <div class="team team-pink">${renderPlayerOnCourt(court.players[0], index, 0)}${renderPlayerOnCourt(court.players[1], index, 1)}</div>
                 <div class="team team-blue">${renderPlayerOnCourt(court.players[2], index, 2)}${renderPlayerOnCourt(court.players[3], index, 3)}</div>
