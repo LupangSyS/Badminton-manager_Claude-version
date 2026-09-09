@@ -98,6 +98,20 @@ function getSmartDraft(count, excludeIds = new Set(), existingPlayers = [], isFo
                                 penaltyScore += (v.type === 'anycourt-forbidden') ? 2000000 : 800000;
                             });
 
+                            // Repeat-teammate / repeat-OPPONENT history beyond the 1-2 round
+                            // cooldown window above. Without this, this search has no memory
+                            // of match history at all past 2 rounds ago — if two players'
+                            // queue timing happened to sync up, nothing here stopped them
+                            // from landing on opposite teams almost every single round.
+                            const cbT1 = [combo[0], combo[1]], cbT2 = [combo[2], combo[3]];
+                            const teammateRepeatPenalty = (a, b) => {
+                                const n = getPairCount(a.id, b.id);
+                                return n * n * 500000;
+                            };
+                            penaltyScore += teammateRepeatPenalty(cbT1[0], cbT1[1]) + teammateRepeatPenalty(cbT2[0], cbT2[1]);
+                            penaltyScore += opponentConflictPenalty(cbT1[0], cbT2[0]) + opponentConflictPenalty(cbT1[0], cbT2[1])
+                                          + opponentConflictPenalty(cbT1[1], cbT2[0]) + opponentConflictPenalty(cbT1[1], cbT2[1]);
+
                             // Rank/MMR balance (unchanged)
                             if (typeof isMMRMode !== 'undefined' && isMMRMode) {
                                 let t1 = [combo[0], combo[1]], t2 = [combo[2], combo[3]];
@@ -161,7 +175,14 @@ function tryBuildTeam(captain, currentPool, targetCount, existingPlayers = [], i
         let nextPlayer = null;
         if (selected.length % 2 !== 0 && !selected[selected.length-1].bookingId) {
             let currentSolo = selected[selected.length - 1];
-            nextPlayer = findBestPartnerInfinite(currentSolo, currentPool, usedIds, existingPlayers, isPity, targetScore, isForce, targetMMR);
+            // When currentSolo is the FIRST opponent (not the original captain),
+            // this pick is that opponent's own teammate — i.e. the SECOND opponent
+            // relative to the original team. Without opponentTeam, this call only
+            // avoided repeat-TEAMMATE pairing with currentSolo and had no idea it
+            // was also picking someone's opponent, so the second opponent slot could
+            // land on someone who'd already faced the first team many times over.
+            const opponentTeam = selected.length >= 3 ? selected.slice(0, 2) : [];
+            nextPlayer = findBestPartnerInfinite(currentSolo, currentPool, usedIds, existingPlayers, isPity, targetScore, isForce, targetMMR, opponentTeam);
         } else {
             let currentTeamMMR = selected.reduce((s, p) => s + (p.mmr||0), 0);
             const effectiveTeam = [...selected, ...existingPlayers];
@@ -172,7 +193,7 @@ function tryBuildTeam(captain, currentPool, targetCount, existingPlayers = [], i
     return selected;
 }
 
-function findBestPartnerInfinite(captain, fullPool, usedIds, rankCheckList = [], isPity = false, targetScore = null, isForce = false, targetMMR = null) {
+function findBestPartnerInfinite(captain, fullPool, usedIds, rankCheckList = [], isPity = false, targetScore = null, isForce = false, targetMMR = null, opponentTeam = []) {
     let best = null; let minScore = Infinity;
     const capScore = RANK_SCORES[captain.level || 'BG'] || 1;
     const capMMR = captain.mmr || 0;
@@ -225,13 +246,60 @@ function findBestPartnerInfinite(captain, fullPool, usedIds, rankCheckList = [],
                 finalScore = pairPenalty + rankPenalty + i;
             }
         }
-        if (finalScore < minScore) { 
+
+        // Picking someone's teammate also picks the OTHER team's second opponent —
+        // apply the same repeat-opponent penalty against the first team here too,
+        // or this slot would only ever avoid repeat teammates, never repeat rivals.
+        opponentTeam.forEach(opp => { finalScore += opponentConflictPenalty(opp, c); });
+
+        if (finalScore < minScore) {
             minScore = finalScore; 
             best = c; 
             if (finalScore === i) break; 
         }
     }
     return best;
+}
+
+// Once facing the same specific rival would make up more than 1-in-this-many
+// of either player's games so far this session, treat it as near-forbidden
+// rather than just "expensive" (user-requested rule: facing someone more than
+// N times while you've only played 3N games total is too many). Not checked
+// until a player has at least this many games, so it doesn't misfire on
+// someone's very first couple of matches.
+const RIVAL_GAME_RATIO_CAP = 3;
+
+// Shared by findBestOpponentInfinite (picking the 1st opponent) AND
+// findBestPartnerInfinite (which also ends up picking the 2ND opponent, when
+// it's finding a teammate for someone who is themselves an opponent — see
+// tryBuildTeam's opponentTeam argument). Without sharing this, the 2nd
+// opponent slot only ever avoided repeat TEAMMATES, never repeat RIVALS,
+// which is how two players could get "locked in" facing each other almost
+// every round even after the 1st-opponent slot started avoiding it.
+function opponentConflictPenalty(member, candidate) {
+    const opCount = getOpponentCount(member.id, candidate.id);
+    // Escalating penalty: each additional repeat costs more than the last
+    // (1st repeat 2,000,000 / 2nd 8,000,000 / 3rd 18,000,000 ...) instead of
+    // flattening out at a flat cap after the 2nd — a flat cap meant a 3rd,
+    // 8th, or 12th repeat all scored identically, so once two players'
+    // queue timing happened to sync up there was no growing pressure to
+    // split them apart again.
+    let penalty = opCount * opCount * 2000000;
+
+    // How far OVER the 1-in-N cap this pick would go — not just whether it's
+    // over — so that when every available candidate is already over the cap
+    // (a small live waiting pool can force that), the algorithm still reaches
+    // for whoever is closest to compliant instead of treating "1 over" and
+    // "5 over" as equally bad.
+    const projectedCount = opCount + 1;
+    const overageFor = (games) => {
+        if (games < RIVAL_GAME_RATIO_CAP) return 0;
+        const allowed = Math.floor((games + 1) / RIVAL_GAME_RATIO_CAP);
+        return Math.max(0, projectedCount - allowed);
+    };
+    const overage = Math.max(overageFor(member.gamesPlayed || 0), overageFor(candidate.gamesPlayed || 0));
+    if (overage > 0) penalty += 500000000 * overage;
+    return penalty;
 }
 
 function findBestOpponentInfinite(currentTeam, fullPool, usedIds, targetMMR = null) {
@@ -241,10 +309,9 @@ function findBestOpponentInfinite(currentTeam, fullPool, usedIds, targetMMR = nu
         const c = fullPool[i];
         if (usedIds.has(c.id) || c.bookingId) continue;
         let conflictScore = 0;
-        
+
         currentTeam.forEach(member => {
-            const opCount = getOpponentCount(member.id, c.id);
-            conflictScore += (opCount >= 2) ? 100000000 : (opCount * 1000000);
+            conflictScore += opponentConflictPenalty(member, c);
         });
 
         let extraScore = 0;
