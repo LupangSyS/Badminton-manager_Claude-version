@@ -481,19 +481,29 @@
         }
 
         let currentTimelineEvents = [];
+        let timelineZoomPxPerMin = 6;
+        const TIMELINE_ZOOM_MIN = 2, TIMELINE_ZOOM_MAX = 40;
+
+        function zoomTimeline(factor) {
+            timelineZoomPxPerMin = Math.max(TIMELINE_ZOOM_MIN, Math.min(TIMELINE_ZOOM_MAX, Math.round(timelineZoomPxPerMin * factor)));
+            const wrap = document.getElementById('player-timeline-wrap');
+            if (wrap && currentRoomId && currentFocusPlayer) {
+                wrap.outerHTML = renderPlayerTimelineHTML(currentRoomId, currentFocusPlayer);
+            }
+        }
 
         function renderPlayerTimelineHTML(roomId, playerName) {
             const { events, sessionStart, sessionEnd } = buildPlayerTimeline(roomId, playerName);
             currentTimelineEvents = events;
 
             if (events.length === 0 || !sessionStart) {
-                return `<div style="background:#fff; border:1px solid #eee; border-radius:12px; padding:16px; margin-bottom:16px; text-align:center; color:#94a3b8; font-size:0.9em;">📈 ยังไม่มีข้อมูลพอสร้างเส้นเวลา</div>`;
+                return `<div id="player-timeline-wrap" style="background:#fff; border:1px solid #eee; border-radius:12px; padding:16px; margin-bottom:16px; text-align:center; color:#94a3b8; font-size:0.9em;">📈 ยังไม่มีข้อมูลพอสร้างเส้นเวลา</div>`;
             }
 
             const enterCount = events.filter(e => e.type === 'enter').length;
             const skipCount = events.filter(e => e.type === 'skip').length;
 
-            const PX_PER_MIN = 6;
+            const PX_PER_MIN = timelineZoomPxPerMin;
             const axisStart = new Date(sessionStart); axisStart.setMinutes(0, 0, 0);
             const axisEnd = new Date(sessionEnd); axisEnd.setMinutes(axisEnd.getMinutes() + 15);
             const totalMin = Math.max(30, (axisEnd - axisStart) / 60000);
@@ -525,14 +535,22 @@
                 </div>
             `).join('');
 
+            const zoomButtonStyle = 'width:28px; height:28px; border-radius:8px; border:1px solid #ddd; background:#fff; color:#2c3e50; font-weight:bold; cursor:pointer; font-size:1em; line-height:1; padding:0;';
+
             return `
-            <div style="background:#fff; border:1px solid #eee; border-radius:12px; padding:16px; margin-bottom:16px;">
+            <div id="player-timeline-wrap" style="background:#fff; border:1px solid #eee; border-radius:12px; padding:16px; margin-bottom:16px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
                     <div style="font-weight:bold; color:#2c3e50;">📈 เส้นเวลาของ ${sanitizeHTML(playerName)}</div>
-                    <div style="font-size:0.82em; color:#7f8c8d;">
-                        <span style="color:${colors.enter}; font-weight:bold;">● เข้าคอร์ท ${enterCount}</span> &nbsp;
-                        <span style="color:${colors.skip}; font-weight:bold;">● ถูกข้าม ${skipCount}</span> &nbsp;
-                        <span style="color:${colors.finish}; font-weight:bold;">● จบเกม</span>
+                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <div style="font-size:0.82em; color:#7f8c8d;">
+                            <span style="color:${colors.enter}; font-weight:bold;">● เข้าคอร์ท ${enterCount}</span> &nbsp;
+                            <span style="color:${colors.skip}; font-weight:bold;">● ถูกข้าม ${skipCount}</span> &nbsp;
+                            <span style="color:${colors.finish}; font-weight:bold;">● จบเกม</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:4px;">
+                            <button onclick="zoomTimeline(0.6)" title="ย่อ (ดูภาพรวม)" style="${zoomButtonStyle}" ${timelineZoomPxPerMin <= TIMELINE_ZOOM_MIN ? 'disabled' : ''}>－</button>
+                            <button onclick="zoomTimeline(1.6)" title="ขยาย (ดูละเอียด)" style="${zoomButtonStyle}" ${timelineZoomPxPerMin >= TIMELINE_ZOOM_MAX ? 'disabled' : ''}>＋</button>
+                        </div>
                     </div>
                 </div>
                 <div style="overflow-x:auto; padding-bottom:24px;">
