@@ -239,13 +239,18 @@ button.mini-btn { padding: 2px 6px; font-size: 0.75em; margin-left: auto; }
     position: relative; padding: 8px;
     display: flex; flex-direction: column; overflow: visible; font-size: 0.85em;
     transition: box-shadow 0.2s, border-color 0.2s;
+    /* Without this, a grid item's default min-width:auto floors it at its
+       content's un-shrinkable width — since .court-header's controls
+       couldn't wrap, that floor was wider than an iPad screen / 4, and the
+       whole grid overflowed instead of the 4 columns actually shrinking. */
+    min-width: 0;
 }
 .court.is-playing { border-color: rgba(79, 203, 141, 0.55); box-shadow: 0 8px 20px -4px rgba(47, 174, 114, 0.28); }
 
 .court-header {
     background: transparent; padding: 0 0 6px 0; margin-bottom: 6px; text-align: left;
-    font-weight: bold; color: var(--primary); display: flex; justify-content: space-between; align-items: center;
-    border-bottom: 1px solid rgba(15, 23, 42, 0.08); font-size: 1em; white-space: nowrap; gap: 6px;
+    font-weight: bold; color: var(--primary); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08); font-size: 1em; gap: 6px;
 }
 
 /* Green playing-surface box that sits inside the card */
