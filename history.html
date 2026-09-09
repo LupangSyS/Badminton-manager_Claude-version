@@ -122,7 +122,7 @@
                         };
                         roomPlayers[roomId] = (roomData.players || [])
                             .filter(p => p.name && p.checkInTime)
-                            .map(p => ({ name: p.name, checkInTime: p.checkInTime }));
+                            .map(p => ({ name: p.name, checkInTime: p.checkInTime, level: p.level || 'BG' }));
 
                         roomData.matchLogs.forEach(log => {
                             if (!log.winners || !log.losers) return;
@@ -134,7 +134,12 @@
                                 duration: log.duration || "-", court: log.court || null,
                                 winners: winArray, losers: loseArray,
                                 scoreWin: (typeof log.scoreWin === 'number') ? log.scoreWin : null,
-                                scoreLose: (typeof log.scoreLose === 'number') ? log.scoreLose : null
+                                scoreLose: (typeof log.scoreLose === 'number') ? log.scoreLose : null,
+                                restingNames: Array.isArray(log.restingNames) ? log.restingNames : null,
+                                bookedNames: Array.isArray(log.bookedNames) ? log.bookedNames : null,
+                                rankFilterOn: !!log.rankFilterOn,
+                                rankMin: log.rankMin || null,
+                                rankMax: log.rankMax || null
                             });
                         });
                     }
@@ -430,6 +435,9 @@
 
             const checkInByName = {};
             roster.forEach(p => { checkInByName[p.name] = new Date(p.checkInTime); });
+            const RANK_LEVELS = ['BG', 'N', 'S', 'P'];
+            const levelByName = {};
+            roster.forEach(p => { levelByName[p.name] = p.level || 'BG'; });
 
             const sessionStart = intervals[0].start;
             const sessionEnd = intervals[intervals.length - 1].end;
@@ -466,7 +474,22 @@
                     });
                 } else {
                     const checkedIn = checkInByName[playerName] && checkInByName[playerName] <= iv.start;
-                    if (checkedIn && !isBusyAt(iv.start)) {
+
+                    // Not every "didn't play this round" is a real skip — exclude the
+                    // legitimate reasons we now have data for: resting, booked with
+                    // someone else, or outside that court's rank filter. Older matches
+                    // (before this was tracked) have these fields as null, so they fall
+                    // through unchanged — this only sharpens skip detection going forward.
+                    const wasResting = iv.restingNames && iv.restingNames.includes(playerName);
+                    const wasBooked = iv.bookedNames && iv.bookedNames.includes(playerName);
+                    let rankExcluded = false;
+                    if (iv.rankFilterOn && iv.rankMin && iv.rankMax) {
+                        const lvl = RANK_LEVELS.indexOf(levelByName[playerName] || 'BG');
+                        const minIdx = RANK_LEVELS.indexOf(iv.rankMin), maxIdx = RANK_LEVELS.indexOf(iv.rankMax);
+                        if (lvl >= 0 && (lvl < minIdx || lvl > maxIdx)) rankExcluded = true;
+                    }
+
+                    if (checkedIn && !isBusyAt(iv.start) && !wasResting && !wasBooked && !rankExcluded) {
                         events.push({
                             type: 'skip', time: iv.start, court: iv.court,
                             label: 'ถูกข้าม',
