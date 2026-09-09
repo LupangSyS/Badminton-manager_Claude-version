@@ -28,12 +28,20 @@ function getSmartDraft(count, excludeIds = new Set(), existingPlayers = [], isFo
 
     const head = pool[0];
 
+    // Also force a seat if the head of the queue has simply been waiting too
+    // long in real time (see MAX_FAIR_WAIT_MS), even if this happens to be
+    // their very first miss — a slow stretch of the queue shouldn't need to
+    // cost someone a full extra "skip" before the guarantee kicks in.
+    const headWaitedTooLong = head && typeof MAX_FAIR_WAIT_MS !== 'undefined'
+        && (Date.now() - (head.joinedQueueAt || Date.now())) >= MAX_FAIR_WAIT_MS;
+
     // 🚨 Anti-Starvation: if the head of the queue has already been skipped once
-    // (skipCount >= 1), guarantee them a seat now. Try politely first, then force it
-    // through (bypassing soft rules like gender-pairing preference) if needed.
-    // If even forcing fails, there simply aren't enough eligible players right now —
-    // that's not an unfair skip, so we mark it as unresolved instead of punishing them.
-    if (head && head.skipCount >= 1 && !isForce) {
+    // (skipCount >= 1) OR has been waiting too long, guarantee them a seat now.
+    // Try politely first, then force it through (bypassing soft rules like
+    // gender-pairing preference) if needed. If even forcing fails, there simply
+    // aren't enough eligible players right now — that's not an unfair skip, so
+    // we mark it as unresolved instead of punishing them.
+    if (head && (head.skipCount >= 1 || headWaitedTooLong) && !isForce) {
         let team = tryBuildTeam(head, pool, count, existingPlayers, true, targetScore, false, targetMMR);
         if (team.length === count) return team;
 
