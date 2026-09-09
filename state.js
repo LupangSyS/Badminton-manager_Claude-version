@@ -14,6 +14,9 @@ let isMMRMode = false;
 let completedGameTimes = [];
 const DEFAULT_GAME_TIME = 15;
 const AUTO_START_DELAY = 30;
+// Nobody should sit out longer than about one game's worth of time before
+// being force-seated — see the anti-starvation check in matchmaker.js.
+const MAX_FAIR_WAIT_MS = 10 * 60 * 1000;
 
 // --- ⏳ Cooldown Tracking (All-Out mode teammate rotation) ---
 // roundCounter: ticks up by 1 every time a real All-Out (rule:'normal') match STARTS.

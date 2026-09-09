@@ -663,6 +663,15 @@ const fillCourtSmart = (courtIdx) => {
     // consider them if the whole group is near the front of the queue.
     const farBookingIds = getFarBookingIds();
 
+    // Captured BEFORE the draft runs, since getSmartDraft's anti-starvation
+    // branch (skipCount / MAX_FAIR_WAIT_MS) checks these same conditions —
+    // used below to make sure a forced pick never gets stuck behind a
+    // cooldown confirmation popup that silently stalls if nobody answers it.
+    const headNeededForce = !!(headOfQueue && (
+        (headOfQueue.skipCount || 0) >= 1 ||
+        (Date.now() - (headOfQueue.joinedQueueAt || Date.now())) >= MAX_FAIR_WAIT_MS
+    ));
+
     let candidates = getSmartDraft(needed, farBookingIds, existingPlayers, false, rankFilter, useCooldown);
     if (candidates.length === 0) candidates = getSmartDraft(needed, farBookingIds, existingPlayers, true, rankFilter, useCooldown);
     // If excluding far bookings leaves nobody eligible at all, fall back to
@@ -691,17 +700,25 @@ const fillCourtSmart = (courtIdx) => {
     }
 
     // A booked pair/group made it into the draft — ask before seating them,
-    // since the host might want to reroll for someone else instead.
+    // since the host might want to reroll for someone else instead. (Booking
+    // confirmation is a separate concern from the cooldown one below, so this
+    // still applies even to a starvation-forced pick.)
     if (candidates.some(p => p.bookingId)) {
         showBookingConfirm(courtIdx, candidates, needed, rankFilter, useCooldown, allWaitingCount);
         return;
     }
 
-    finishSmartFill(courtIdx, candidates, useCooldown, allWaitingCount);
+    // A forced pick already means "seat this person no matter what" — pausing
+    // it on an unanswered cooldown popup would silently defeat the whole
+    // point of forcing it, and cost them exactly the extra wait this was
+    // supposed to prevent.
+    const wasStarvationOverride = headNeededForce && candidates.some(c => c.id === headOfQueue.id);
+
+    finishSmartFill(courtIdx, candidates, useCooldown, allWaitingCount, wasStarvationOverride);
 };
 
-function finishSmartFill(courtIdx, candidates, useCooldown, waitingCount) {
-    if (useCooldown) {
+function finishSmartFill(courtIdx, candidates, useCooldown, waitingCount, skipCooldownConfirm = false) {
+    if (useCooldown && !skipCooldownConfirm) {
         const violations = getCooldownViolations(candidates);
         // Only ask for confirmation if there WAS another option — with exactly
         // as many people waiting as needed, there's no alternative combination anyway.
