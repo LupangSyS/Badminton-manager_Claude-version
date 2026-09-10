@@ -636,6 +636,15 @@
             }
 
             const sumHours = sessionPlayers.reduce((s, p) => s + p.hours, 0);
+
+            // Split the shuttle total across hour-buckets the same way it's split across
+            // players — proportional to how many player-hours fall in that bucket — so the
+            // per-hour card can show "court + shuttle = total" for that hour specifically.
+            bucketInfo.forEach(b => {
+                b.shuttleCost = sumHours > 0 ? shuttleTotal * (b.players.length / sumHours) : 0;
+                b.totalCost = b.bucketCost + b.shuttleCost;
+            });
+
             const playerResults = sessionPlayers.map(p => {
                 let courtFee = 0;
                 bucketInfo.forEach(b => { if (b.players.includes(p)) courtFee += b.perPersonShare; });
@@ -682,12 +691,17 @@
             if (!lastResult) return;
             const { bucketInfo, playerResults, totalCourtCost, shuttleTotal, grandTotal, sideCourt } = lastResult;
 
-            document.getElementById('hourly-breakdown').innerHTML = bucketInfo.map(b => `
+            document.getElementById('hourly-breakdown').innerHTML = bucketInfo.map(b => {
+                const priceLabel = Math.round(b.shuttleCost) > 0
+                    ? `${Math.round(b.bucketCost).toLocaleString('th-TH')}+${Math.round(b.shuttleCost).toLocaleString('th-TH')} = ${baht(b.totalCost)}`
+                    : baht(b.bucketCost);
+                return `
                 <div class="hour-bucket">
-                    <div class="hb-top"><span>ชั่วโมงที่ ${b.ordinal} (${b.label})</span><span class="hb-price">${baht(b.bucketCost)}</span></div>
+                    <div class="hb-top"><span>ชั่วโมงที่ ${b.ordinal} (${b.label})</span><span class="hb-price">${priceLabel}</span></div>
                     <div class="hb-names">${b.activeCourts} คอร์ท • รับผิดชอบ: ${b.players.length > 0 ? b.players.map(p => sanitizeHTML(p.name)).join(', ') : '— ไม่มีใครอยู่ช่วงนี้ —'}</div>
                 </div>
-            `).join('') || '<div class="empty-hint">ยังไม่มีชั่วโมงให้คิดเงิน</div>';
+            `;
+            }).join('') || '<div class="empty-hint">ยังไม่มีชั่วโมงให้คิดเงิน</div>';
 
             document.getElementById('final-player-rows').innerHTML = playerResults.map(p => `
                 <tr>
