@@ -185,12 +185,16 @@
                         <label>เล่นกี่ชั่วโมง</label>
                         <input type="number" id="side-court-hours" value="1" min="0" step="0.5" oninput="scheduleRecalc()">
                     </div>
+                    <div class="field">
+                        <label>จำนวนลูกขนไก่ที่ให้ไป (ลูก)</label>
+                        <input type="number" id="side-court-shuttle-qty" value="0" min="0" oninput="scheduleRecalc()">
+                    </div>
                 </div>
                 <div class="field">
-                    <label>รายชื่อเพื่อน (บรรทัดละ 1 คน) — จะหารค่าคอร์ทนี้เท่าๆ กัน</label>
+                    <label>รายชื่อเพื่อน (บรรทัดละ 1 คน) — จะหารค่าคอร์ทและค่าลูกนี้เท่าๆ กัน</label>
                     <textarea id="side-court-names" rows="3" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; font-family:inherit; font-size:0.95em; resize:vertical;" oninput="scheduleRecalc()" placeholder="เพื่อนเอ&#10;เพื่อนบี"></textarea>
                 </div>
-                <p style="font-size:0.8em; color:#94a3b8; margin:0;">คิดแยกต่างหากจากตารางรายชั่วโมงด้านบนโดยสิ้นเชิง ไม่ปนกับใครในระบบ และไม่หารค่าลูกขนไก่ร่วมด้วย</p>
+                <p style="font-size:0.8em; color:#94a3b8; margin:0;">คิดแยกต่างหากจากตารางรายชั่วโมงด้านบนโดยสิ้นเชิง ไม่ปนกับใครในระบบ ค่าลูกที่ให้ไปคิดจากราคาลูก/ลูกที่ตั้งไว้ในขั้นตอนที่ 2 ด้านบน</p>
             </div>
         </div>
 
@@ -317,6 +321,7 @@
             document.getElementById('side-court-toggle').checked = false;
             document.getElementById('side-court-fields').classList.add('hidden');
             document.getElementById('side-court-names').value = '';
+            document.getElementById('side-court-shuttle-qty').value = 0;
             if (!roomId) return;
 
             const data = roomsCache[roomId];
@@ -466,6 +471,7 @@
                     if (typeof bill.sideCourt.courts === 'number') document.getElementById('side-court-count').value = bill.sideCourt.courts;
                     if (typeof bill.sideCourt.price === 'number') document.getElementById('side-court-price').value = bill.sideCourt.price;
                     if (typeof bill.sideCourt.hours === 'number') document.getElementById('side-court-hours').value = bill.sideCourt.hours;
+                    if (typeof bill.sideCourt.shuttleQty === 'number') document.getElementById('side-court-shuttle-qty').value = bill.sideCourt.shuttleQty;
                     if (Array.isArray(bill.sideCourt.names)) document.getElementById('side-court-names').value = bill.sideCourt.names.join('\n');
                 }
 
@@ -645,10 +651,19 @@
                 const sCourts = Math.max(1, parseFloat(document.getElementById('side-court-count').value) || 1);
                 const sPrice = parseFloat(document.getElementById('side-court-price').value) || 0;
                 const sHours = Math.max(0, parseFloat(document.getElementById('side-court-hours').value) || 0);
+                const sShuttleQty = Math.max(0, parseFloat(document.getElementById('side-court-shuttle-qty').value) || 0);
                 const sNames = getSideCourtNames();
-                const sCost = sCourts * sPrice * sHours;
+                const courtCost = sCourts * sPrice * sHours;
+                // Shuttles given to the outside group are priced at the same per-shuttle
+                // rate set in step 2 above — they're the same shuttles, just handed over.
+                const shuttleCost = sShuttleQty * shuttlePrice;
+                const sCost = courtCost + shuttleCost;
                 const perGuest = sNames.length > 0 ? sCost / sNames.length : 0;
-                sideCourt = { courts: sCourts, price: sPrice, hours: sHours, names: sNames, totalCost: sCost, perGuest };
+                sideCourt = {
+                    courts: sCourts, price: sPrice, hours: sHours, names: sNames,
+                    courtCost, shuttleQty: sShuttleQty, shuttlePricePerUnit: shuttlePrice, shuttleCost,
+                    totalCost: sCost, perGuest
+                };
             }
 
             lastResult = {
@@ -690,9 +705,12 @@
 
             const sideCourtBox = document.getElementById('side-court-summary');
             if (sideCourt) {
+                const shuttleLine = sideCourt.shuttleQty > 0
+                    ? ` + ลูกขนไก่ ${sideCourt.shuttleQty} ลูก × ${baht(sideCourt.shuttlePricePerUnit)} = ${baht(sideCourt.shuttleCost)}`
+                    : '';
                 sideCourtBox.innerHTML = `
                     <div class="hour-bucket">
-                        <div class="hb-top"><span>🏸 คอร์ทแยกให้เพื่อน (${sideCourt.courts} คอร์ท × ${sideCourt.hours} ชม. × ${baht(sideCourt.price)}/คอร์ท-ชม.)</span><span class="hb-price">${baht(sideCourt.totalCost)}</span></div>
+                        <div class="hb-top"><span>🏸 คอร์ทแยกให้เพื่อน (${sideCourt.courts} คอร์ท × ${sideCourt.hours} ชม. × ${baht(sideCourt.price)}/คอร์ท-ชม. = ${baht(sideCourt.courtCost)}${shuttleLine})</span><span class="hb-price">${baht(sideCourt.totalCost)}</span></div>
                         <div class="hb-names">${sideCourt.names.length > 0
                             ? `หารคนละ ${baht(sideCourt.perGuest)}: ${sideCourt.names.map(n => sanitizeHTML(n)).join(', ')}`
                             : '— ยังไม่ได้ใส่ชื่อเพื่อน —'}</div>
@@ -720,7 +738,9 @@
             text += `\n💰 รวมทั้งวัน: ${baht(grandTotal)}\n\n👤 ยอดแต่ละคน:\n`;
             playerResults.forEach(p => { text += `${p.name}: ${baht(p.total)} (${p.hours} ชม.)\n`; });
             if (sideCourt) {
-                text += `\n🏸 คอร์ทแยกให้เพื่อน (${sideCourt.courts} คอร์ท × ${sideCourt.hours} ชม.): ${baht(sideCourt.totalCost)}\n`;
+                text += `\n🏸 คอร์ทแยกให้เพื่อน (${sideCourt.courts} คอร์ท × ${sideCourt.hours} ชม.): ${baht(sideCourt.courtCost)}`;
+                if (sideCourt.shuttleQty > 0) text += ` + ลูกขนไก่ ${sideCourt.shuttleQty} ลูก: ${baht(sideCourt.shuttleCost)}`;
+                text += ` = รวม ${baht(sideCourt.totalCost)}\n`;
                 if (sideCourt.names.length > 0) {
                     text += `หารคนละ ${baht(sideCourt.perGuest)}:\n`;
                     sideCourt.names.forEach(n => { text += `${n}: ${baht(sideCourt.perGuest)}\n`; });
