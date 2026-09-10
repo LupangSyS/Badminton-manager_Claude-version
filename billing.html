@@ -149,6 +149,49 @@
                 <thead><tr><th>ชื่อ</th><th>เช็คอิน</th><th>ชั่วโมงที่คิดเงิน</th></tr></thead>
                 <tbody id="player-rows"></tbody>
             </table>
+
+            <div class="field-row" style="align-items:flex-end; margin-top:16px; padding-top:14px; border-top:1px dashed #e2e8f0;">
+                <div class="field" style="flex:2; margin-bottom:0;">
+                    <label>เพิ่มคนที่ไม่มีในระบบ (ลืมล็อกอินแอป แต่เล่นด้วย)</label>
+                    <input type="text" id="manual-add-name" placeholder="ชื่อ">
+                </div>
+                <div class="field" style="flex:1; margin-bottom:0;">
+                    <label>เวลาเช็คอิน</label>
+                    <input type="time" id="manual-add-time">
+                </div>
+                <div class="field" style="flex:0 0 auto; margin-bottom:0;">
+                    <button class="btn btn-accent" onclick="addManualPlayer()" style="white-space:nowrap;">➕ เพิ่ม</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel hidden" id="panel-side-court">
+            <h3><span class="n">4</span>คอร์ทที่แยกให้เพื่อนนอกระบบ (ถ้ามี)</h3>
+            <div class="toggle-row">
+                <input type="checkbox" id="side-court-toggle" onchange="onSideCourtToggle()">
+                <label style="margin:0;">วันนี้มีคอร์ทที่ยกให้เพื่อนที่ไม่ได้ใช้แอปเลย เล่นแยกต่างหาก</label>
+            </div>
+            <div id="side-court-fields" class="hidden">
+                <div class="field-row">
+                    <div class="field">
+                        <label>จำนวนคอร์ทที่ยกให้</label>
+                        <input type="number" id="side-court-count" value="1" min="1" oninput="scheduleRecalc()">
+                    </div>
+                    <div class="field">
+                        <label>ราคาต่อคอร์ท/ชั่วโมง (บาท)</label>
+                        <input type="number" id="side-court-price" value="140" min="0" oninput="scheduleRecalc()">
+                    </div>
+                    <div class="field">
+                        <label>เล่นกี่ชั่วโมง</label>
+                        <input type="number" id="side-court-hours" value="1" min="0" step="0.5" oninput="scheduleRecalc()">
+                    </div>
+                </div>
+                <div class="field">
+                    <label>รายชื่อเพื่อน (บรรทัดละ 1 คน) — จะหารค่าคอร์ทนี้เท่าๆ กัน</label>
+                    <textarea id="side-court-names" rows="3" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; font-family:inherit; font-size:0.95em; resize:vertical;" oninput="scheduleRecalc()" placeholder="เพื่อนเอ&#10;เพื่อนบี"></textarea>
+                </div>
+                <p style="font-size:0.8em; color:#94a3b8; margin:0;">คิดแยกต่างหากจากตารางรายชั่วโมงด้านบนโดยสิ้นเชิง ไม่ปนกับใครในระบบ และไม่หารค่าลูกขนไก่ร่วมด้วย</p>
+            </div>
         </div>
 
         <div class="btn-row hidden" id="calc-btn-row">
@@ -156,7 +199,7 @@
         </div>
 
         <div class="panel hidden" id="panel-results">
-            <h3><span class="n">4</span>สรุปผลรายชั่วโมง</h3>
+            <h3><span class="n">5</span>สรุปผลรายชั่วโมง</h3>
             <div id="hourly-breakdown"></div>
 
             <div style="margin-top: 18px; border-top: 1px dashed #e2e8f0; padding-top: 14px;">
@@ -166,8 +209,11 @@
                 </table>
             </div>
 
+            <div id="side-court-summary"></div>
+
             <div class="total-line"><span>รวมค่าคอร์ททั้งวัน</span><span id="total-court-cost">0 บาท</span></div>
             <div class="total-line"><span>รวมค่าลูกขนไก่</span><span id="total-shuttle-cost">0 บาท</span></div>
+            <div class="total-line hidden" id="side-court-total-line"><span>ค่าคอร์ทแยกเพื่อน</span><span id="side-court-total-value">0 บาท</span></div>
             <div class="total-line grand"><span>ยอดรวมทั้งหมด</span><span id="grand-total">0 บาท</span></div>
 
             <div class="btn-row">
@@ -264,9 +310,13 @@
             const roomId = document.getElementById('room-select').value;
             document.getElementById('panel-settings').classList.add('hidden');
             document.getElementById('panel-players').classList.add('hidden');
+            document.getElementById('panel-side-court').classList.add('hidden');
             document.getElementById('panel-results').classList.add('hidden');
             document.getElementById('calc-btn-row').classList.add('hidden');
             document.getElementById('loaded-bill-banner').classList.add('hidden');
+            document.getElementById('side-court-toggle').checked = false;
+            document.getElementById('side-court-fields').classList.add('hidden');
+            document.getElementById('side-court-names').value = '';
             if (!roomId) return;
 
             const data = roomsCache[roomId];
@@ -310,10 +360,57 @@
             renderPlayerRows();
             document.getElementById('panel-settings').classList.remove('hidden');
             document.getElementById('panel-players').classList.remove('hidden');
+            document.getElementById('panel-side-court').classList.remove('hidden');
             document.getElementById('calc-btn-row').classList.remove('hidden');
             document.getElementById('panel-results').classList.add('hidden');
 
             recalcNow();
+        }
+
+        // ==========================================
+        // เพิ่ม/ลบ คนที่ไม่มีในระบบด้วยมือ (เช่น ลืมล็อกอินแอปแต่มาเล่นด้วย)
+        // ==========================================
+        function addManualPlayer() {
+            const nameInput = document.getElementById('manual-add-name');
+            const timeInput = document.getElementById('manual-add-time');
+            const name = nameInput.value.trim();
+            if (!name) { alert('พิมพ์ชื่อก่อนนะ'); return; }
+            if (sessionPlayers.some(p => p.name === name)) { alert('มีชื่อนี้อยู่แล้วในตาราง'); return; }
+
+            const ref = sessionPlayers.length > 0 ? sessionPlayers[0].checkInDate : new Date();
+            let checkInDate;
+            if (timeInput.value) {
+                const [hh, mm] = timeInput.value.split(':').map(Number);
+                checkInDate = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), hh, mm, 0, 0);
+            } else {
+                checkInDate = new Date(ref);
+            }
+
+            sessionPlayers.push({ name, checkInDate, hours: 1, touched: false, manual: true });
+            sessionPlayers.sort((a, b) => a.checkInDate - b.checkInDate);
+            nameInput.value = '';
+            timeInput.value = '';
+            recalcNow();
+        }
+
+        function removeManualPlayer(i) {
+            sessionPlayers.splice(i, 1);
+            recalcNow();
+        }
+
+        // ==========================================
+        // คอร์ทแยกให้เพื่อนนอกระบบ — คิดเงินแยกเป็นก้อนของตัวเอง ไม่ปนกับ
+        // ตารางรายชั่วโมงหลัก และหารเท่าๆ กันตามจำนวนคนที่ใส่ชื่อไว้
+        // ==========================================
+        function onSideCourtToggle() {
+            const on = document.getElementById('side-court-toggle').checked;
+            document.getElementById('side-court-fields').classList.toggle('hidden', !on);
+            scheduleRecalc();
+        }
+
+        function getSideCourtNames() {
+            return document.getElementById('side-court-names').value
+                .split('\n').map(s => s.trim()).filter(Boolean);
         }
 
         async function loadSavedBillIfExists(roomId) {
@@ -344,6 +441,14 @@
                     });
                 }
 
+                if (Array.isArray(bill.manualPlayers)) {
+                    bill.manualPlayers.forEach(mp => {
+                        if (sessionPlayers.some(p => p.name === mp.name)) return;
+                        sessionPlayers.push({ name: mp.name, checkInDate: new Date(mp.checkInTime), hours: 1, touched: false, manual: true });
+                    });
+                    sessionPlayers.sort((a, b) => a.checkInDate - b.checkInDate);
+                }
+
                 if (Array.isArray(bill.playersBill)) {
                     const savedHours = {};
                     bill.playersBill.forEach(pb => { savedHours[pb.name] = pb.hours; });
@@ -353,6 +458,15 @@
                             p.touched = true;
                         }
                     });
+                }
+
+                if (bill.sideCourt) {
+                    document.getElementById('side-court-toggle').checked = true;
+                    document.getElementById('side-court-fields').classList.remove('hidden');
+                    if (typeof bill.sideCourt.courts === 'number') document.getElementById('side-court-count').value = bill.sideCourt.courts;
+                    if (typeof bill.sideCourt.price === 'number') document.getElementById('side-court-price').value = bill.sideCourt.price;
+                    if (typeof bill.sideCourt.hours === 'number') document.getElementById('side-court-hours').value = bill.sideCourt.hours;
+                    if (Array.isArray(bill.sideCourt.names)) document.getElementById('side-court-names').value = bill.sideCourt.names.join('\n');
                 }
 
                 document.getElementById('loaded-bill-banner').classList.remove('hidden');
@@ -404,14 +518,16 @@
             const tbody = document.getElementById('player-rows');
             tbody.innerHTML = sessionPlayers.map((p, i) => {
                 const timeStr = p.checkInDate.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                const manualBadge = p.manual ? ' <span style="font-size:0.72em; background:rgba(185,128,232,0.15); color:var(--purple); font-weight:700; padding:2px 7px; border-radius:999px;">🆕 เพิ่มเอง</span>' : '';
                 return `
                 <tr>
-                    <td>${sanitizeHTML(p.name)}</td>
+                    <td>${sanitizeHTML(p.name)}${manualBadge}</td>
                     <td>${timeStr}</td>
                     <td>
                         <div class="name-cell">
                             <input type="number" min="0" step="1" value="${p.hours}" id="player-hour-${i}" oninput="onPlayerHourInput(${i})">
                             ${p.touched ? `<button class="reset-btn" title="รีเซ็ตเป็นค่าคำนวณอัตโนมัติ" onclick="resetPlayerHour(${i})">↺</button>` : ''}
+                            ${p.manual ? `<button class="reset-btn" title="ลบคนนี้ออก" onclick="removeManualPlayer(${i})" style="color:var(--rose);">✕</button>` : ''}
                         </div>
                     </td>
                 </tr>`;
@@ -521,9 +637,23 @@
                 return { name: p.name, hours: p.hours, courtFee, shuttleFee, total: courtFee + shuttleFee };
             });
 
+            // Court(s) lent to friends outside the system entirely — a completely
+            // separate flat cost, split evenly among however many names are listed,
+            // never mixed into the hourly-bucket pool above.
+            let sideCourt = null;
+            if (document.getElementById('side-court-toggle').checked) {
+                const sCourts = Math.max(1, parseFloat(document.getElementById('side-court-count').value) || 1);
+                const sPrice = parseFloat(document.getElementById('side-court-price').value) || 0;
+                const sHours = Math.max(0, parseFloat(document.getElementById('side-court-hours').value) || 0);
+                const sNames = getSideCourtNames();
+                const sCost = sCourts * sPrice * sHours;
+                const perGuest = sNames.length > 0 ? sCost / sNames.length : 0;
+                sideCourt = { courts: sCourts, price: sPrice, hours: sHours, names: sNames, totalCost: sCost, perGuest };
+            }
+
             lastResult = {
-                bucketInfo, playerResults, totalCourtCost, shuttleTotal,
-                grandTotal: totalCourtCost + shuttleTotal,
+                bucketInfo, playerResults, totalCourtCost, shuttleTotal, sideCourt,
+                grandTotal: totalCourtCost + shuttleTotal + (sideCourt ? sideCourt.totalCost : 0),
                 closing, totalCourts, pricePerCourtHour, perCourtOn,
                 courtHours: perCourtOn ? courtRows.map(c => c.hours) : null,
                 shuttlePrice, shuttleQty
@@ -535,7 +665,7 @@
 
         function renderResults() {
             if (!lastResult) return;
-            const { bucketInfo, playerResults, totalCourtCost, shuttleTotal, grandTotal } = lastResult;
+            const { bucketInfo, playerResults, totalCourtCost, shuttleTotal, grandTotal, sideCourt } = lastResult;
 
             document.getElementById('hourly-breakdown').innerHTML = bucketInfo.map(b => `
                 <div class="hour-bucket">
@@ -558,6 +688,21 @@
             document.getElementById('total-shuttle-cost').textContent = baht(shuttleTotal);
             document.getElementById('grand-total').textContent = baht(grandTotal);
 
+            const sideCourtBox = document.getElementById('side-court-summary');
+            if (sideCourt) {
+                sideCourtBox.innerHTML = `
+                    <div class="hour-bucket">
+                        <div class="hb-top"><span>🏸 คอร์ทแยกให้เพื่อน (${sideCourt.courts} คอร์ท × ${sideCourt.hours} ชม. × ${baht(sideCourt.price)}/คอร์ท-ชม.)</span><span class="hb-price">${baht(sideCourt.totalCost)}</span></div>
+                        <div class="hb-names">${sideCourt.names.length > 0
+                            ? `หารคนละ ${baht(sideCourt.perGuest)}: ${sideCourt.names.map(n => sanitizeHTML(n)).join(', ')}`
+                            : '— ยังไม่ได้ใส่ชื่อเพื่อน —'}</div>
+                    </div>`;
+            } else {
+                sideCourtBox.innerHTML = '';
+            }
+            document.getElementById('side-court-total-line').classList.toggle('hidden', !sideCourt);
+            document.getElementById('side-court-total-value').textContent = sideCourt ? baht(sideCourt.totalCost) : '0 บาท';
+
             document.getElementById('panel-results').classList.remove('hidden');
         }
 
@@ -566,7 +711,7 @@
         // ==========================================
         async function copyLineSummary() {
             if (!lastResult) return;
-            const { bucketInfo, playerResults, totalCourtCost, shuttleTotal, grandTotal } = lastResult;
+            const { bucketInfo, playerResults, totalCourtCost, shuttleTotal, grandTotal, sideCourt } = lastResult;
             let text = `🏸 สรุปค่าใช้จ่าย ${selectedRoomLabel}\n\n`;
             bucketInfo.forEach(b => {
                 text += `⏰ ชม.${b.ordinal} (${b.label}): ${baht(b.bucketCost)} — ${b.players.length > 0 ? b.players.map(p => p.name).join(', ') : 'ไม่มีคนเล่น'}\n`;
@@ -574,6 +719,13 @@
             if (shuttleTotal > 0) text += `🏸 ค่าลูกขนไก่: ${baht(shuttleTotal)} (หารตามสัดส่วนชั่วโมงเล่น)\n`;
             text += `\n💰 รวมทั้งวัน: ${baht(grandTotal)}\n\n👤 ยอดแต่ละคน:\n`;
             playerResults.forEach(p => { text += `${p.name}: ${baht(p.total)} (${p.hours} ชม.)\n`; });
+            if (sideCourt) {
+                text += `\n🏸 คอร์ทแยกให้เพื่อน (${sideCourt.courts} คอร์ท × ${sideCourt.hours} ชม.): ${baht(sideCourt.totalCost)}\n`;
+                if (sideCourt.names.length > 0) {
+                    text += `หารคนละ ${baht(sideCourt.perGuest)}:\n`;
+                    sideCourt.names.forEach(n => { text += `${n}: ${baht(sideCourt.perGuest)}\n`; });
+                }
+            }
 
             try {
                 await navigator.clipboard.writeText(text);
@@ -590,7 +742,8 @@
             if (!lastResult || !selectedRoomId) return;
             if (!confirm('บันทึกผลสรุปยอดนี้ลง Firebase เลยไหม? (จะทับของเก่าถ้าห้องนี้เคยบันทึกไว้แล้ว)')) return;
 
-            const { bucketInfo, playerResults, totalCourtCost, shuttleTotal, grandTotal, closing, totalCourts, pricePerCourtHour, perCourtOn, courtHours, shuttlePrice, shuttleQty } = lastResult;
+            const { bucketInfo, playerResults, totalCourtCost, shuttleTotal, grandTotal, closing, totalCourts, pricePerCourtHour, perCourtOn, courtHours, shuttlePrice, shuttleQty, sideCourt } = lastResult;
+            const manualPlayers = sessionPlayers.filter(p => p.manual).map(p => ({ name: p.name, checkInTime: p.checkInDate.toISOString() }));
             try {
                 await db.collection('bills').doc(selectedRoomId).set({
                     roomLabel: selectedRoomLabel,
@@ -602,6 +755,8 @@
                     totalCost: grandTotal,
                     hourlyBreakdown: bucketInfo.map(b => ({ label: b.label, cost: b.bucketCost, players: b.players.map(p => p.name) })),
                     playersBill: playerResults,
+                    manualPlayers,
+                    sideCourt,
                     savedAt: Date.now()
                 });
                 alert('💾 บันทึกผลสรุปยอดเรียบร้อย!');
