@@ -18,6 +18,12 @@ const AUTO_START_DELAY = 30;
 // being force-seated — see the anti-starvation check in matchmaker.js.
 const MAX_FAIR_WAIT_MS = 10 * 60 * 1000;
 
+// A real badminton game just doesn't take this long. A court still stuck on
+// "playing" this long is almost always a bug (host forgot to click "จบเกม",
+// or stale state got carried over from a previous day) rather than a real
+// match — see the auto-abort check in app.js's init() timer.
+const MAX_GAME_DURATION_MS = 30 * 60 * 1000;
+
 // --- ⏳ Cooldown Tracking (All-Out mode teammate rotation) ---
 // roundCounter: ticks up by 1 every time a real All-Out (rule:'normal') match STARTS.
 // lastTeammateRound: key = pair key (see getPairKey), value = the roundCounter at the

@@ -50,6 +50,14 @@ function createRoom() {
     currentRoomId = generateRoomCode();
     isHost = true;
 
+    // This is a BRAND NEW room — it must never inherit another day's cached
+    // players/courts. Without this, init() below would load whatever got left
+    // in localStorage last time (e.g. the admin forgot to click "จบการตีแบด"),
+    // including stale gameStartTime values that show as impossible play times
+    // like "200 minutes" — and then immediately push that stale data into
+    // this new room's Firebase document.
+    localStorage.removeItem(STORAGE_KEY);
+
     sessionStorage.setItem('ROOM_ID', currentRoomId);
     sessionStorage.setItem('IS_HOST', 'true');
 
@@ -107,6 +115,10 @@ function joinRoomAdmin() {
 
     currentRoomId = roomInput;
     isHost = true;
+
+    // Don't let another room's cached state flash on screen while we wait
+    // for the real data to arrive from Firebase (see createRoom() for why).
+    localStorage.removeItem(STORAGE_KEY);
 
     sessionStorage.setItem('ROOM_ID', currentRoomId);
     sessionStorage.setItem('IS_HOST', 'true');
@@ -192,7 +204,12 @@ function init() {
     setInterval(() => {
         courts.forEach((c, idx) => {
             if (c.state === 'playing' && c.gameStartTime) {
-                const diffSec = Math.floor((Date.now() - c.gameStartTime) / 1000);
+                const diffMs = Date.now() - c.gameStartTime;
+                if (diffMs >= MAX_GAME_DURATION_MS) {
+                    autoAbortStuckCourt(idx);
+                    return;
+                }
+                const diffSec = Math.floor(diffMs / 1000);
                 c.timer = diffSec;
                 const el = document.getElementById(`timer-${idx}`);
                 if (el) el.innerText = formatTime(diffSec);
@@ -438,6 +455,31 @@ function stopAllCourtsWithoutScoring() {
         c.autoStartTarget = null;
     });
     renderCourts();
+}
+
+// Safety net for a court stuck showing an impossible play time (e.g. 200
+// minutes) — either the host genuinely forgot to click "จบเกม" for way too
+// long, or (the more common cause) a previous day's leftover state got
+// loaded back in. Either way, no real match result exists to save, so this
+// just clears the court and returns its players to the queue untouched —
+// same as ending the session early would for a court still mid-game.
+function autoAbortStuckCourt(idx) {
+    const court = courts[idx];
+    clearInterval(court.interval);
+    const names = court.players.filter(Boolean).map(p => p.name);
+    court.players.forEach(p => { if (p) sendToQueue(p.id); });
+    court.players = [];
+    court.state = 'empty';
+    court.timer = 0;
+    court.gameStartTime = null;
+    court.isOpened = false;
+    court.autoStartTarget = null;
+    renderCourts();
+    updateQueueDisplay();
+    if (typeof triggerSave === 'function') triggerSave();
+    if (names.length > 0) {
+        alert(`⚠️ คอร์ท ${idx + 1} เล่นเกินเวลาไปมาก (${names.join(', ')}) น่าจะเป็นเกมที่ค้างจากบั๊กหรือลืมกดจบเกม ระบบเลยยกเลิกเกมนี้อัตโนมัติ (ไม่นับเป็นเกมที่จบ) แล้วส่งทุกคนกลับเข้าคิวให้แล้ว ลองเช็คคอร์ทนี้อีกทีนะ`);
+    }
 }
 
 function updateCourts(change) {
