@@ -309,6 +309,18 @@ async function addPlayers() {
             isFastPass = true;
         }
 
+        // If this name already went "home early" (removePlayer keeps them around
+        // as status:'left' so today's games/wins aren't lost) and they came back,
+        // rejoin THAT same entry instead of pushing a duplicate row that starts
+        // today's count back at 0.
+        const existingLeft = players.find(pl => pl.name === cleanName && pl.status === 'left');
+        if (existingLeft) {
+            existingLeft.status = 'waiting';
+            existingLeft.joinedQueueAt = joinTime;
+            existingLeft.isFastPass = isFastPass;
+            continue;
+        }
+
         let profile = {
             id: Date.now() + Math.random(),
             name: cleanName,
@@ -363,10 +375,22 @@ async function addPlayers() {
     triggerSave();
 }
 
+// A player who's already played today has real stats sitting on this object
+// (todayGames/todayWins, and they count toward today's dashboard + daily
+// awards) — a plain delete used to throw all of that away the moment someone
+// removed them from the queue, even if they'd been playing for hours and just
+// went home. For anyone who's actually played, this marks them "left" instead
+// of deleting them, so they quietly drop out of the queue/matchmaking (every
+// candidate filter in the app only looks at status === 'waiting') while their
+// today's stats stay exactly as they were. Someone who was added by mistake
+// and never played (0 games today) still gets fully removed, since there's no
+// stat to protect and no reason to leave a dead row behind.
 const removePlayer = (id) => {
     const p = players.find(x => x.id === id);
     if (!p) return;
     if(p.status === 'playing') { alert('เล่นอยู่ ลบไม่ได้ครับ'); return; }
+
+    const hasPlayedToday = (p.todayGames || 0) > 0;
 
     if (p.bookingId) {
         const others = players.filter(x => x.bookingId === p.bookingId && x.id !== id);
@@ -376,10 +400,20 @@ const removePlayer = (id) => {
                 if(x.bookingId === p.bookingId) { x.bookingId = null; x.bookingTeam = null; }
             });
         }
+    } else if (hasPlayedToday) {
+        if(!confirm(`${p.name} เล่นไปแล้ว ${p.todayGames} เกมวันนี้ — เอาออกจากคิว (สถิติวันนี้จะยังเก็บไว้ ไม่หายไปไหน) ใช่ไหม?`)) return;
     } else {
         if(!confirm(`ต้องการลบ ${p.name} ใช่ไหม?`)) return;
     }
-    players = players.filter(p => p.id !== id);
+
+    if (hasPlayedToday) {
+        p.status = 'left';
+        p.isResting = false;
+        p.bookingId = null;
+        p.bookingTeam = null;
+    } else {
+        players = players.filter(p => p.id !== id);
+    }
     updateQueueDisplay();
     triggerSave();
 };
@@ -1342,6 +1376,7 @@ function updateDashboard() {
         let statusHTML = `<span class="status-pill status-resting">พัก</span>`;
         if (p.status === 'playing') statusHTML = `<span class="status-pill status-playing">🏸 แข่งอยู่</span>`;
         else if (p.status === 'waiting') statusHTML = p.isResting ? `<span class="status-pill status-resting">💤 พัก</span>` : `<span class="status-pill status-queue">⏳ รอคิว</span>`;
+        else if (p.status === 'left') statusHTML = `<span class="status-pill status-left">🚪 กลับก่อน</span>`;
 
         return `<tr><td>${medal} ${rank}</td><td>${sanitizeHTML(p.name)}</td><td>${tierBadge}</td><td style="font-weight:bold; color:#4FB3F0;">${p.mmr || 0}</td><td>${displayGames}</td><td>${displayWins}</td><td>${rate}%</td><td>${statusHTML}</td></tr>`;
     }).join('');
@@ -1520,7 +1555,7 @@ async function endSession() {
 let currentBookingType = '';
 const openBookingModal = (type) => {
     currentBookingType = type;
-    const candidates = players.filter(p => !p.bookingId && !p.isResting).sort((a,b) => a.joinedQueueAt - b.joinedQueueAt);
+    const candidates = players.filter(p => !p.bookingId && !p.isResting && p.status !== 'left').sort((a,b) => a.joinedQueueAt - b.joinedQueueAt);
     const options = candidates.map(p => `<option value="${p.id}">${sanitizeHTML(p.name)}${p.status === 'playing' ? ' (กำลังเล่น)' : ''}</option>`).join('');
     let html = '';
     if (type === 'pair') {
@@ -1836,7 +1871,7 @@ function renderDbPlayers(playerList) {
     const sorted = sortDbPlayers(playerList);
 
     sorted.forEach(p => {
-        const isAlreadyInQueue = players.some(activeP => activeP.name === p.name);
+        const isAlreadyInQueue = players.some(activeP => activeP.name === p.name && activeP.status !== 'left');
         const isSelected = dbSelectedNames.has(p.name);
 
         const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=random&color=fff`;
@@ -1882,7 +1917,7 @@ function filterDbPlayers() {
 // Firestore-profile lookup logic by feeding it all the selected names at once.
 async function addSelectedFromDb() {
     if (dbSelectedNames.size === 0) return;
-    const names = [...dbSelectedNames].filter(name => !players.some(p => p.name === name));
+    const names = [...dbSelectedNames].filter(name => !players.some(p => p.name === name && p.status !== 'left'));
     if (names.length === 0) { dbSelectedNames = new Set(); closeDbSelector(); return; }
 
     const tempBox = document.createElement('textarea');
