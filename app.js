@@ -385,7 +385,10 @@ const removePlayer = (id) => {
 };
 
 function resetStatsOnly() {
-    if(!confirm('รีเซ็ตสถิติ? (สำหรับเริ่มเซสชันใหม่)')) return;
+    if(!confirm('รีเซ็ตสถิติ? (สำหรับเริ่มเซสชันใหม่) — จะลบประวัติการแข่งขันของวันนี้ทิ้งด้วย กู้คืนไม่ได้')) return;
+    const pwd = prompt('พิมพ์รหัสผ่านแอดมินเพื่อยืนยัน:');
+    if (pwd === null) return;
+    if (pwd !== 'siberian') { alert('❌ รหัสผ่านผิด ยกเลิกการรีเซ็ต'); return; }
     players.forEach(p => {
         p.todayGames = 0;
         p.todayWins = 0;
@@ -406,6 +409,9 @@ function resetStatsOnly() {
 function resetAll() {
     if(!confirm('⚠️ ล้างข้อมูลทั้งหมดใช่ไหม?')) return;
     if(!confirm('⚠️ ยืนยันครั้งที่ 2?')) return;
+    const pwd = prompt('พิมพ์รหัสผ่านแอดมินเพื่อยืนยัน:');
+    if (pwd === null) return;
+    if (pwd !== 'siberian') { alert('❌ รหัสผ่านผิด ยกเลิกการล้างข้อมูล'); return; }
     players = []; pairingHistory = {}; opponentHistory = {}; matchLogs = [];
     roundCounter = 0; lastTeammateRound = {};
     courts.forEach(c => { clearInterval(c.interval); c.players = []; c.state = 'empty'; c.timer = 0; });

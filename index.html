@@ -77,6 +77,9 @@
                 <span>คิวรอ: <span id="header-queue-count">0 คน</span></span>
                 <div class="header-divider"></div>
                 <span>แข่งเสร็จแล้ว: <span id="header-completed-count">0 แมตช์</span></span>
+                <div class="header-divider"></div>
+                <button class="header-danger-btn" onclick="resetStatsOnly()" title="รีเซ็ตสถิติ (ต้องใส่รหัสผ่าน)">รีเซ็ต</button>
+                <button class="header-danger-btn header-danger-btn-strong" onclick="resetAll()" title="ล้างข้อมูลทั้งหมด (ต้องใส่รหัสผ่าน)">ล้าง</button>
             </div>
         </div>
 
@@ -103,9 +106,6 @@
                                 <button onclick="updateCourts(-1)">-</button>
                                 <span id="court-count" style="font-weight:bold; width: 25px; text-align:center;">2</span>
                                 <button onclick="updateCourts(1)">+</button>
-                                <div style="flex:1"></div>
-                                <button class="warning" onclick="resetStatsOnly()">รีเซ็ต</button>
-                                <button class="danger" onclick="resetAll()">ล้าง</button>
                             </div>
                         </div>
                         <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.5); padding: 5px; border-radius: 6px; flex-wrap: wrap;">

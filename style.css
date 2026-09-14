@@ -213,6 +213,16 @@ button.mini-btn { padding: 2px 6px; font-size: 0.75em; margin-left: auto; }
 .header-stats b { color: white; }
 .header-divider { width: 1px; height: 14px; background: #334155; }
 
+/* Tucked into the corner on purpose — destructive, password-gated, not meant
+   to be reached for casual/everyday clicks. */
+.header-danger-btn {
+    background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 999px; padding: 4px 12px; font-size: 0.85em; font-weight: 700; cursor: pointer;
+}
+.header-danger-btn:hover { background: rgba(255,111,145,0.25); color: white; }
+.header-danger-btn-strong { background: rgba(255,111,145,0.15); border-color: rgba(255,111,145,0.4); color: #FF6F91; }
+.header-danger-btn-strong:hover { background: #FF6F91; color: white; }
+
 /* Compact "A & B vs C & D" next-match chip */
 .next-match-chip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .next-match-chip .side-a { color: #7FD1F5; font-weight: 800; }
