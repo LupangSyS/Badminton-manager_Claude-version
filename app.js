@@ -745,15 +745,6 @@ const fillCourtSmart = (courtIdx) => {
     // consider them if the whole group is near the front of the queue.
     const farBookingIds = getFarBookingIds();
 
-    // Captured BEFORE the draft runs, since getSmartDraft's anti-starvation
-    // branch (skipCount / MAX_FAIR_WAIT_MS) checks these same conditions —
-    // used below to make sure a forced pick never gets stuck behind a
-    // cooldown confirmation popup that silently stalls if nobody answers it.
-    const headNeededForce = !!(headOfQueue && (
-        (headOfQueue.skipCount || 0) >= 1 ||
-        (Date.now() - (headOfQueue.joinedQueueAt || Date.now())) >= MAX_FAIR_WAIT_MS
-    ));
-
     let candidates = getSmartDraft(needed, farBookingIds, existingPlayers, false, rankFilter, useCooldown);
     if (candidates.length === 0) candidates = getSmartDraft(needed, farBookingIds, existingPlayers, true, rankFilter, useCooldown);
     // If excluding far bookings leaves nobody eligible at all, fall back to
@@ -781,20 +772,33 @@ const fillCourtSmart = (courtIdx) => {
         headOfQueue._unresolvedSkip = false;
     }
 
+    // A forced pick already means "seat this person no matter what" — pausing
+    // it on an unanswered cooldown OR booking-confirmation popup would
+    // silently defeat the whole point of forcing it, and cost them exactly
+    // the extra wait this was supposed to prevent. (Previously only the
+    // cooldown popup was bypassed here — a starving player who also happened
+    // to be part of a booked pair could still get stuck behind an unanswered
+    // booking popup, quietly blowing past the anti-starvation guarantee.)
+    //
+    // Checked directly against each candidate rather than reusing headOfQueue
+    // above — headOfQueue deliberately EXCLUDES booked players (it's the
+    // "waiting, not booked" head used for skip-count bookkeeping), so a
+    // booked player who getSmartDraft's own internal anti-starvation check
+    // just force-selected would never match it, and this bypass would never
+    // fire for exactly the case it exists for.
+    const wasStarvationOverride = candidates.some(c =>
+        (c.skipCount || 0) >= 1 ||
+        (Date.now() - (c.joinedQueueAt || Date.now())) >= MAX_FAIR_WAIT_MS
+    );
+
     // A booked pair/group made it into the draft — ask before seating them,
-    // since the host might want to reroll for someone else instead. (Booking
+    // since the host might want to reroll for someone else instead. Booking
     // confirmation is a separate concern from the cooldown one below, so this
-    // still applies even to a starvation-forced pick.)
-    if (candidates.some(p => p.bookingId)) {
+    // still applies — except when this exact pick is a starvation-forced seat.
+    if (candidates.some(p => p.bookingId) && !wasStarvationOverride) {
         showBookingConfirm(courtIdx, candidates, needed, rankFilter, useCooldown, allWaitingCount);
         return;
     }
-
-    // A forced pick already means "seat this person no matter what" — pausing
-    // it on an unanswered cooldown popup would silently defeat the whole
-    // point of forcing it, and cost them exactly the extra wait this was
-    // supposed to prevent.
-    const wasStarvationOverride = headNeededForce && candidates.some(c => c.id === headOfQueue.id);
 
     finishSmartFill(courtIdx, candidates, useCooldown, allWaitingCount, wasStarvationOverride);
 };
